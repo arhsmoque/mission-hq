@@ -21,7 +21,6 @@ export default function NewMission() {
   const handleFileSelect = useCallback(async (file: File, url: string) => {
     setPreviewUrl(url);
     setStep('processing');
-
     try {
       const result = await runOcr(file);
       setOcrResult(result);
@@ -37,24 +36,17 @@ export default function NewMission() {
     async (editedText: string) => {
       setStep('creating');
       try {
-        const file = await fetch(previewUrl)
-          .then((r) => r.blob())
-          .then((b) => new File([b], 'worksheet.jpg', { type: 'image/jpeg' }));
-
         const missionId = await createMission.mutateAsync({
-          file,
           ocrText: editedText,
           ocrEngine: 'tesseract',
           confidence: ocrResult.confidence,
         });
-
         setStep('generating');
         await generateModules.mutateAsync({
           missionId,
           ocrText: editedText,
           model: selectedModel,
         });
-
         navigate(`/mission/${missionId}`);
       } catch (err) {
         console.error('Create mission failed:', err);
@@ -62,7 +54,7 @@ export default function NewMission() {
         setStep('preview');
       }
     },
-    [createMission, generateModules, navigate, ocrResult.confidence, previewUrl, selectedModel]
+    [createMission, generateModules, navigate, ocrResult.confidence, selectedModel]
   );
 
   const handleRetry = useCallback(() => {

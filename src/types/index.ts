@@ -1,5 +1,3 @@
-import type { Timestamp } from 'firebase/firestore';
-
 export interface User {
   uid: string;
   displayName: string;
@@ -14,12 +12,12 @@ export interface User {
   };
   earnedBadges: Array<{
     badgeId: string;
-    awardedAt: Timestamp;
+    awardedAt: number;
     missionId: string;
   }>;
   dailyMissionLimit: number;
   preferredLanguageOrder: ('ms' | 'en' | 'zh')[];
-  createdAt: Timestamp;
+  createdAt: number;
 }
 
 export interface Module {
@@ -30,7 +28,7 @@ export interface Module {
   example?: string;
   reflectionPrompt: string;
   isComplete: boolean;
-  completedAt?: Timestamp;
+  completedAt?: number;
 }
 
 export interface Mission {
@@ -39,19 +37,19 @@ export interface Mission {
   title: string;
   client: string;
   status: 'pending' | 'active' | 'completed' | 'archived';
-  fileUrl: string;
+  fileUrl?: string;
   ocrText: string;
   ocrEngine: 'tesseract' | 'google_vision';
   aiAnalysis: {
     model: string;
-    generatedAt: Timestamp;
+    generatedAt: number;
     modules: Module[];
   };
   customModuleOrder?: number[];
   parentReviewed: boolean;
   estimatedDurationMinutes: number;
-  completedAt?: Timestamp;
-  createdAt: Timestamp;
+  completedAt?: number;
+  createdAt: number;
 }
 
 export interface ChatMessage {
@@ -61,7 +59,7 @@ export interface ChatMessage {
   moduleId?: number;
   gadgetUsed?: string;
   modelUsed?: string;
-  timestamp: Timestamp;
+  timestamp: number;
 }
 
 export interface VocabEntry {
@@ -72,7 +70,7 @@ export interface VocabEntry {
   english: string;
   sourceMissionId: string;
   sourceModuleId?: number;
-  savedAt: Timestamp;
+  savedAt: number;
   reviewCount: number;
-  nextReview: Timestamp;
+  nextReview: number;
 }

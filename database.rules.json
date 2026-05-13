@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "duit_raya_2026": {
+      ".read": "now < 1777046400000",
+      ".write": "now < 1777046400000"
+    },
+    "beelal_coffee": {
+      ".read": true,
+      ".write": true
+    },
+    "mission_hq": {
+      "missions": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      },
+      "chats": {
+        "$missionId": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      },
+      "vocab": {
+        "$uid": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    }
+  }
+}

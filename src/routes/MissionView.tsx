@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, update } from 'firebase/database';
+import { rtdb, auth } from '@/lib/firebase';
 import { useMission, useCompleteMission } from '@/features/mission/useMission';
 import ModuleChat from '@/features/mission/ModuleChat';
 import ModuleReorder from '@/features/mission/ModuleReorder';
@@ -27,19 +27,15 @@ export default function MissionView() {
   };
 
   const toggleModule = async (moduleId: number, current: boolean) => {
-    if (!mission) return;
+    const uid = auth.currentUser?.uid;
+    if (!mission || !uid) return;
     const modules = mission.aiAnalysis.modules.map((m) =>
-      m.id === moduleId
-        ? { ...m, isComplete: !current }
-        : m
+      m.id === moduleId ? { ...m, isComplete: !current } : m
     );
-    await updateDoc(doc(db, 'missions', missionId!), {
-      'aiAnalysis.modules': modules,
+    await update(ref(rtdb, `mission_hq/missions/${uid}/${missionId}`), {
+      'aiAnalysis/modules': modules,
     });
-
-    // Check if all complete
-    const allDone = modules.every((m) => m.isComplete);
-    if (allDone && !showComplete) {
+    if (modules.every((m) => m.isComplete) && !showComplete) {
       handleComplete(modules);
     }
   };
@@ -47,20 +43,15 @@ export default function MissionView() {
   const handleComplete = async (modules: Module[]) => {
     const result = await completeMission.mutateAsync({ missionId: missionId!, modules });
     addBadge(result.badgeId);
-
-    // Unlock next gadget at 5 missions (simplified logic)
-    const completedMissions = 1; // Would fetch from Firestore in real app
-    if (completedMissions >= 1) {
-      unlockGadget('vocab_definer');
-    }
-
+    unlockGadget('vocab_definer');
     setShowComplete(true);
   };
 
   const handleReorder = async (modules: Module[]) => {
-    if (!mission) return;
-    await updateDoc(doc(db, 'missions', missionId!), {
-      'aiAnalysis.modules': modules,
+    const uid = auth.currentUser?.uid;
+    if (!mission || !uid) return;
+    await update(ref(rtdb, `mission_hq/missions/${uid}/${missionId}`), {
+      'aiAnalysis/modules': modules,
     });
   };
 
@@ -98,7 +89,6 @@ export default function MissionView() {
       </h1>
       <p className="text-text-3 mt-1">Client: {mission.client}</p>
 
-      {/* Progress bar */}
       <div className="mt-4 h-3 w-full rounded-full bg-bg-2 overflow-hidden">
         <div
           className="h-full rounded-full bg-accent transition-all"
@@ -113,7 +103,6 @@ export default function MissionView() {
         </div>
       )}
 
-      {/* Actions */}
       <div className="mt-4 flex gap-2">
         <button
           onClick={() => openChat()}
@@ -131,7 +120,6 @@ export default function MissionView() {
         </button>
       </div>
 
-      {/* Modules */}
       <div className="mt-6 space-y-3">
         <h2 className="font-semibold text-text-2 text-sm uppercase tracking-wide">
           Steps ({modules.filter((m) => m.isComplete).length}/{modules.length})
@@ -181,7 +169,6 @@ export default function MissionView() {
         )}
       </div>
 
-      {/* Chat Drawer */}
       {chatOpen && (
         <ModuleChat
           missionId={missionId}
@@ -192,7 +179,6 @@ export default function MissionView() {
         />
       )}
 
-      {/* Completion Screen */}
       {showComplete && (
         <MissionComplete
           onClose={() => {

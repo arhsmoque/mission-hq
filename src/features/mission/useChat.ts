@@ -1,15 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  collection,
-  query,
-  orderBy,
-  addDoc,
-  serverTimestamp,
-  onSnapshot,
-  getDocs,
-  limit,
-} from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { ref, push, set, onValue, query as dbQuery, orderByChild, limitToLast, get } from 'firebase/database';
+import { rtdb, auth } from '@/lib/firebase';
 import { callOpenRouter } from '@/lib/ai';
 import { buildChatPrompt } from '@/lib/prompts';
 import { sanitizeResponse } from '@/lib/safety';
@@ -20,12 +11,12 @@ export function useChatMessages(missionId: string) {
     queryKey: ['chatMessages', missionId],
     queryFn: () =>
       new Promise<ChatMessage[]>((resolve) => {
-        const q = query(
-          collection(db, 'chats', missionId, 'messages'),
-          orderBy('timestamp', 'asc')
-        );
-        const unsub = onSnapshot(q, (snap) => {
-          const msgs = snap.docs.map((d) => ({ msgId: d.id, ...d.data() } as ChatMessage));
+        const chatsRef = ref(rtdb, `mission_hq/chats/${missionId}`);
+        const unsub = onValue(chatsRef, (snap) => {
+          if (!snap.exists()) return resolve([]);
+          const msgs = Object.entries(snap.val() as Record<string, any>)
+            .map(([id, data]) => ({ msgId: id, ...data } as ChatMessage))
+            .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
           resolve(msgs);
         });
         return () => unsub();
@@ -52,26 +43,25 @@ export function useSendMessage() {
     mutationFn: async (input: SendMessageInput) => {
       if (!auth.currentUser) throw new Error('Not authenticated');
 
-      // Write user message to Firestore
-      await addDoc(collection(db, 'chats', input.missionId, 'messages'), {
+      const chatsRef = ref(rtdb, `mission_hq/chats/${input.missionId}`);
+
+      await set(push(chatsRef), {
         role: 'user',
         content: input.content,
         moduleId: input.moduleId ?? null,
         gadgetUsed: input.gadgetContext || null,
         modelUsed: input.model,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
       });
 
-      // Fetch last messages for context
-      const q = query(
-        collection(db, 'chats', input.missionId, 'messages'),
-        orderBy('timestamp', 'desc'),
-        limit(10)
-      );
-      const snap = await getDocs(q);
-      const lastMessages = snap.docs.map((d) => d.data() as { role: string; content: string }).reverse();
+      const snap = await get(dbQuery(chatsRef, orderByChild('timestamp'), limitToLast(10)));
+      const lastMessages: { role: string; content: string }[] = [];
+      if (snap.exists()) {
+        Object.values(snap.val() as Record<string, any>)
+          .sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+          .forEach((msg: any) => lastMessages.push({ role: msg.role, content: msg.content }));
+      }
 
-      // Build prompt and call OpenRouter
       const promptMessages = buildChatPrompt({
         ocrText: input.ocrText,
         moduleTitle: input.moduleTitle,
@@ -79,20 +69,18 @@ export function useSendMessage() {
         gadgetContext: input.gadgetContext,
         lastMessages,
       });
-
       promptMessages.push({ role: 'user', content: input.content });
 
       const rawResponse = await callOpenRouter(promptMessages, input.model, 0.7);
       const safeResponse = sanitizeResponse(rawResponse, input.ocrText);
 
-      // Write assistant message to Firestore
-      await addDoc(collection(db, 'chats', input.missionId, 'messages'), {
+      await set(push(chatsRef), {
         role: 'assistant',
         content: safeResponse,
         moduleId: input.moduleId ?? null,
         gadgetUsed: input.gadgetContext || null,
         modelUsed: input.model,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
       });
 
       return { success: true };

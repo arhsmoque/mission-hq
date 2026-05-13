@@ -6,8 +6,7 @@
 .DESCRIPTION
   1. Commits any staged/unstaged changes and pushes to GitHub.
      Cloudflare Workers picks up the push and rebuilds automatically.
-  2. Builds and deploys Firebase Cloud Functions, Firestore rules, and
-     Storage rules to the ash-2026-photobook project.
+  2. Deploys Firebase Realtime Database rules to the ash-2026-photobook project.
 
 .PARAMETER Message
   Git commit message. Defaults to a timestamp-based message.
@@ -36,8 +35,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-$RepoDir     = $PSScriptRoot
-$FunctionsDir = Join-Path $RepoDir 'functions'
+$RepoDir = $PSScriptRoot
 
 function Write-OK   ($m) { Write-Host "[OK]   $m" -ForegroundColor Green  }
 function Write-INFO ($m) { Write-Host "[INFO] $m" -ForegroundColor Cyan   }
@@ -78,33 +76,10 @@ if (-not $SkipGit) {
 
 # ── Firebase backend ──────────────────────────────────────────────────────────
 if (-not $SkipFirebase) {
-    Invoke-Step 'Building Cloud Functions (tsc)...' {
-        $tsc = Join-Path $FunctionsDir 'node_modules\.bin\tsc'
-        if (-not (Test-Path $tsc)) {
-            Write-INFO "Installing functions dependencies..."
-            npm.cmd --prefix $FunctionsDir install --silent
-            if ($LASTEXITCODE -ne 0) { throw "npm install failed in functions/" }
-        }
-        npm.cmd --prefix $FunctionsDir run build
-        if ($LASTEXITCODE -ne 0) { throw "functions tsc build failed" }
-        Write-OK "Functions compiled"
-    }
-
-    Invoke-Step 'Deploying Firebase functions + Firestore rules...' {
-        firebase deploy --only functions,firestore:rules --project ash-2026-photobook
-        if ($LASTEXITCODE -ne 0) { throw "firebase deploy (functions/firestore) failed" }
-        Write-OK "Functions and Firestore rules deployed"
-    }
-
-    Invoke-Step 'Deploying Firebase Storage rules...' {
-        if ($WhatIf) { return }
-        firebase deploy --only storage --project ash-2026-photobook 2>&1 | Tee-Object -Variable storageOut | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-WARN "Storage rules skipped — enable Firebase Storage first:"
-            Write-WARN "  https://console.firebase.google.com/project/ash-2026-photobook/storage"
-        } else {
-            Write-OK "Storage rules deployed"
-        }
+    Invoke-Step 'Deploying Firebase Realtime Database rules...' {
+        firebase deploy --only database --project ash-2026-photobook
+        if ($LASTEXITCODE -ne 0) { throw "firebase deploy (database) failed" }
+        Write-OK "RTDB rules deployed"
     }
 }
 

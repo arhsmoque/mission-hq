@@ -1,15 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  orderBy,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { ref, push, set, remove, onValue } from 'firebase/database';
+import { rtdb, auth } from '@/lib/firebase';
 import { annotateChinese } from '@/lib/chinese';
 import type { VocabEntry } from '@/types';
 
@@ -21,12 +12,11 @@ export function useVocabBank() {
     queryFn: () =>
       new Promise<VocabEntry[]>((resolve) => {
         if (!uid) return resolve([]);
-        const q = query(
-          collection(db, 'users', uid, 'vocab'),
-          orderBy('savedAt', 'desc')
-        );
-        const unsub = onSnapshot(q, (snap) => {
-          const items = snap.docs.map((d) => ({ vocabId: d.id, ...d.data() } as VocabEntry));
+        const unsub = onValue(ref(rtdb, `mission_hq/vocab/${uid}`), (snap) => {
+          if (!snap.exists()) return resolve([]);
+          const items = Object.entries(snap.val() as Record<string, any>)
+            .map(([id, data]) => ({ vocabId: id, ...data } as VocabEntry))
+            .sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0));
           resolve(items);
         });
         return () => unsub();
@@ -51,11 +41,11 @@ export function useSaveVocab() {
   return useMutation({
     mutationFn: async (input: SaveVocabInput) => {
       if (!uid) throw new Error('Not authenticated');
-      await addDoc(collection(db, 'users', uid, 'vocab'), {
+      await set(push(ref(rtdb, `mission_hq/vocab/${uid}`)), {
         ...input,
-        savedAt: serverTimestamp(),
+        savedAt: Date.now(),
         reviewCount: 0,
-        nextReview: serverTimestamp(),
+        nextReview: Date.now(),
       });
     },
     onSuccess: () => {
@@ -71,7 +61,7 @@ export function useDeleteVocab() {
   return useMutation({
     mutationFn: async (vocabId: string) => {
       if (!uid) throw new Error('Not authenticated');
-      await deleteDoc(doc(db, 'users', uid, 'vocab', vocabId));
+      await remove(ref(rtdb, `mission_hq/vocab/${uid}/${vocabId}`));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vocab', uid] });

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { ref, onValue } from 'firebase/database';
+import { rtdb, auth } from '@/lib/firebase';
 import type { Mission } from '@/types';
 
 export default function MissionArchive() {
@@ -11,13 +11,11 @@ export default function MissionArchive() {
     queryFn: () =>
       new Promise<Mission[]>((resolve) => {
         if (!uid) return resolve([]);
-        const q = query(
-          collection(db, 'missions'),
-          where('uid', '==', uid),
-          orderBy('createdAt', 'desc')
-        );
-        const unsub = onSnapshot(q, (snap) => {
-          const items = snap.docs.map((d) => ({ missionId: d.id, ...d.data() } as Mission));
+        const unsub = onValue(ref(rtdb, `mission_hq/missions/${uid}`), (snap) => {
+          if (!snap.exists()) return resolve([]);
+          const items = Object.entries(snap.val() as Record<string, any>)
+            .map(([id, data]) => ({ missionId: id, ...data } as Mission))
+            .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
           resolve(items);
         });
         return () => unsub();
