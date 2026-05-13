@@ -3,7 +3,9 @@ import { DEFAULT_MODEL_ID } from '@/lib/models';
 
 interface AuthSlice {
   user: { uid: string; displayName: string; avatarUrl: string } | null;
+  authReady: boolean;
   setUser: (user: AuthSlice['user']) => void;
+  setAuthReady: (ready: boolean) => void;
 }
 
 interface MissionUISlice {
@@ -34,7 +36,9 @@ export const useRootStore = create<
 >((set, get) => ({
   // Auth slice
   user: null,
+  authReady: false,
   setUser: (user) => set({ user }),
+  setAuthReady: (ready) => set({ authReady: ready }),
 
   // Mission UI slice
   activeMissionId: null,

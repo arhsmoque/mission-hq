@@ -22,6 +22,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const user = useRootStore((s) => s.user)
+  const authReady = useRootStore((s) => s.authReady)
+  if (!authReady) return <div className="flex h-screen items-center justify-center text-text-2">Getting ready...</div>
   if (!user) return <Navigate to="/" replace />
   return <>{children}</>
 }
