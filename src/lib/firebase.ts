@@ -3,13 +3,13 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  apiKey: 'AIzaSyB8j-jHo2N341ieW4AVCdPL3ipn4Ss8sYQ',
+  authDomain: 'ash-2026-photobook.firebaseapp.com',
   databaseURL: 'https://ash-2026-photobook-default-rtdb.asia-southeast1.firebasedatabase.app',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  projectId: 'ash-2026-photobook',
+  storageBucket: 'ash-2026-photobook.firebasestorage.app',
+  messagingSenderId: '328228907150',
+  appId: '1:328228907150:web:fb4d2780b40bb8403ec1df',
 };
 
 export const app = initializeApp(firebaseConfig, 'mission-hq');
