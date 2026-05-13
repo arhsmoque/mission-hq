@@ -90,10 +90,21 @@ if (-not $SkipFirebase) {
         Write-OK "Functions compiled"
     }
 
-    Invoke-Step 'Deploying Firebase (functions + firestore:rules + storage)...' {
-        firebase deploy --only functions,firestore:rules,storage --project ash-2026-photobook
-        if ($LASTEXITCODE -ne 0) { throw "firebase deploy failed" }
-        Write-OK "Firebase backend deployed"
+    Invoke-Step 'Deploying Firebase functions + Firestore rules...' {
+        firebase deploy --only functions,firestore:rules --project ash-2026-photobook
+        if ($LASTEXITCODE -ne 0) { throw "firebase deploy (functions/firestore) failed" }
+        Write-OK "Functions and Firestore rules deployed"
+    }
+
+    Invoke-Step 'Deploying Firebase Storage rules...' {
+        if ($WhatIf) { return }
+        firebase deploy --only storage --project ash-2026-photobook 2>&1 | Tee-Object -Variable storageOut | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-WARN "Storage rules skipped — enable Firebase Storage first:"
+            Write-WARN "  https://console.firebase.google.com/project/ash-2026-photobook/storage"
+        } else {
+            Write-OK "Storage rules deployed"
+        }
     }
 }
 
