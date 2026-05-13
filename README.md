@@ -1,73 +1,80 @@
-# React + TypeScript + Vite
+# Mission HQ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Turn homework into missions! An AI-powered learning tool for kids.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- 📸 **Upload & OCR** — Scan worksheets with Tesseract.js
+- 🧠 **AI Module Generator** — Breaks homework into manageable steps
+- 💬 **Chat Sidekick** — Socratic AI help per step
+- 🀄 **Chinese Language Lab** — Pinyin, Malay & English translation
+- 🧰 **My Toolbelt** — Gadgets, assistant config, AI model picker
+- 🏆 **Gamification** — Badges, unlockable gadgets, progress tracking
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 18 + Vite + TypeScript
+- Tailwind CSS + shadcn/ui
+- Firebase (Auth, Firestore, Storage) — Spark plan
+- OpenRouter — multi-model AI gateway
+- TanStack Query + Zustand
 
-## Expanding the ESLint configuration
+## Local Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Create `.env.local`:
 ```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+VITE_OPENROUTER_KEY=...
+```
+
+## Deploy to Cloudflare Pages (Recommended)
+
+### Option A: Cloudflare Dashboard (like beelal coffee)
+
+1. Push code to GitHub repo `mission-hq`
+2. Cloudflare Dashboard → Pages → Create Project
+3. Connect to Git → select `mission-hq`
+4. Build settings:
+   - **Framework preset:** None
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+5. Save and Deploy
+
+URL: `mission-hq.pages.dev`
+
+### Option B: Wrangler CLI
+
+```bash
+npm run build
+npx wrangler login
+npx wrangler pages deploy dist --project-name mission-hq
+```
+
+## SPA Routing
+
+`_redirects` in `public/` handles client-side routing:
+```
+/* /index.html 200
+```
+
+## Firebase Setup
+
+1. Enable **Authentication** → Anonymous sign-in
+2. Enable **Firestore Database** → Start in production mode
+3. Enable **Storage** → Default rules
+4. Deploy rules: `firebase deploy --only firestore:rules,storage`
+
+## Cost
+
+- Firebase Spark plan: FREE (Auth, Firestore 1GB, Storage 1GB)
+- OpenRouter: ~$6.50/month at 500 missions
