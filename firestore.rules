@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function isLinkedParent(childUid) {
+      return request.auth != null
+        && get(/databases/$(database)/documents/users/$(childUid)).data.linkedChildUid == request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isLinkedParent(uid);
+      allow write: if isOwner(uid);
+    }
+
+    match /missions/{missionId} {
+      allow read: if isOwner(resource.data.uid) || isLinkedParent(resource.data.uid);
+      allow create: if isOwner(request.resource.data.uid);
+      allow update: if isOwner(resource.data.uid);
+      allow delete: if isOwner(resource.data.uid);
+    }
+
+    match /chats/{missionId}/messages/{msgId} {
+      allow read: if isOwner(get(/databases/$(database)/documents/missions/$(missionId)).data.uid)
+                  || isLinkedParent(get(/databases/$(database)/documents/missions/$(missionId)).data.uid);
+      allow create: if isOwner(get(/databases/$(database)/documents/missions/$(missionId)).data.uid)
+                    && request.resource.data.role == "user";
+      allow update, delete: if false;
+    }
+
+    match /users/{uid}/vocab/{vocabId} {
+      allow read: if isOwner(uid) || isLinkedParent(uid);
+      allow write: if isOwner(uid);
+    }
+
+    match /chineseCache/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

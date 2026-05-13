@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@theme {
+  /* Kid-friendly color palette */
+  --color-bg: #fef7ee;
+  --color-bg-2: #f9f0e1;
+  --color-surface: #ffffff;
+  --color-primary: #2c1a0e;
+  --color-accent: #c8962a;
+  --color-accent-2: #e8b84b;
+  --color-text: #1c110a;
+  --color-text-2: #7a5c3e;
+  --color-text-3: #b89070;
+  --color-green: #1fad5a;
+  --color-green-2: #25d366;
+  --color-red: #c0392b;
+  --color-border: rgba(44, 26, 14, 0.1);
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'DM Sans', sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Minimum tap target 48px for accessibility */
+button,
+a,
+input,
+textarea,
+select {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Ruby text for Chinese pinyin */
+ruby rt {
+  font-size: 0.6em;
+  color: var(--color-text-2);
+}
