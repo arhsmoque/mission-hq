@@ -1,5 +1,7 @@
+import { APP_CONFIG } from '@/config';
+
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const API_KEY = import.meta.env.VITE_OPENROUTER_KEY || '';
+const API_KEY = APP_CONFIG.openrouter.key;
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -16,8 +18,8 @@ export async function callOpenRouter(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${API_KEY}`,
-      'HTTP-Referer': 'https://mission-hq.web.app',
-      'X-OpenRouter-Title': 'Mission HQ',
+      'HTTP-Referer': APP_CONFIG.openrouter.referer,
+      'X-OpenRouter-Title': APP_CONFIG.openrouter.title,
     },
     body: JSON.stringify({
       model,

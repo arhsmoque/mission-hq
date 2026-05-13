@@ -2,79 +2,63 @@
 
 Turn homework into missions! An AI-powered learning tool for kids.
 
-## Features
+## Files
 
-- 📸 **Upload & OCR** — Scan worksheets with Tesseract.js
-- 🧠 **AI Module Generator** — Breaks homework into manageable steps
-- 💬 **Chat Sidekick** — Socratic AI help per step
-- 🀄 **Chinese Language Lab** — Pinyin, Malay & English translation
-- 🧰 **My Toolbelt** — Gadgets, assistant config, AI model picker
-- 🏆 **Gamification** — Badges, unlockable gadgets, progress tracking
+| File | Purpose |
+|---|---|
+| `src/config.ts` | **Edit this first** — all Firebase, OpenRouter, and app settings |
+| `src/lib/firebase.ts` | Firebase init (reads from `config.ts`) |
+| `src/lib/ai.ts` | OpenRouter client (reads from `config.ts`) |
+| `wrangler.jsonc` | Cloudflare Pages deployment config |
+| `public/_redirects` | SPA catch-all for client-side routing |
 
-## Tech Stack
+## Quick Start
 
-- React 18 + Vite + TypeScript
-- Tailwind CSS + shadcn/ui
-- Firebase (Auth, Firestore, Storage) — Spark plan
-- OpenRouter — multi-model AI gateway
-- TanStack Query + Zustand
-
-## Local Development
+### 1. Local Dev
 
 ```bash
 npm install
 npm run dev
 ```
 
-Create `.env.local`:
-```
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
-VITE_FIREBASE_STORAGE_BUCKET=...
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-VITE_OPENROUTER_KEY=...
-```
+No `.env` file needed — config is in `src/config.ts`.
 
-## Deploy to Cloudflare Pages (Recommended)
+### 2. Deploy to Cloudflare Pages
 
-### Option A: Cloudflare Dashboard (like beelal coffee)
-
-1. Push code to GitHub repo `mission-hq`
-2. Cloudflare Dashboard → Pages → Create Project
-3. Connect to Git → select `mission-hq`
-4. Build settings:
+**Option A — Cloudflare Dashboard (recommended):**
+1. Push all files to GitHub (`arhsmoque/mission-hq`)
+2. Cloudflare Dashboard → Pages → Create Project → Connect Git → select `mission-hq`
+3. Build settings:
    - **Framework preset:** None
    - **Build command:** `npm run build`
    - **Build output directory:** `dist`
-5. Save and Deploy
+4. Save and Deploy — every push to `master` auto-deploys in ~1 minute
 
-URL: `mission-hq.pages.dev`
-
-### Option B: Wrangler CLI
-
+**Option B — Wrangler CLI:**
 ```bash
 npm run build
-npx wrangler login
 npx wrangler pages deploy dist --project-name mission-hq
 ```
 
-## SPA Routing
+### 3. Firebase Setup (one time)
 
-`_redirects` in `public/` handles client-side routing:
-```
-/* /index.html 200
-```
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → `ash-2026-photobook`
+2. Enable **Authentication** → Anonymous sign-in
+3. Enable **Realtime Database** → Start in test mode
+4. Enable **Storage** → Default rules
+5. Deploy rules: `firebase deploy --only database,storage`
 
-## Firebase Setup
+## Architecture
 
-1. Enable **Authentication** → Anonymous sign-in
-2. Enable **Firestore Database** → Start in production mode
-3. Enable **Storage** → Default rules
-4. Deploy rules: `firebase deploy --only firestore:rules,storage`
+- **Vite + React + TypeScript** — client-side SPA
+- **Firebase Realtime Database** — stores missions, chat, progress (same project as beelal coffee)
+- **Firebase Anonymous Auth** — no login required
+- **Firebase Storage** — worksheet images
+- **Cloudflare Pages** — serves the built app globally
+- **OpenRouter** — multi-model AI gateway (DeepSeek, Claude, Gemini, etc.)
 
 ## Cost
 
-- Firebase Spark plan: FREE (Auth, Firestore 1GB, Storage 1GB)
+- Firebase Spark plan: FREE (Auth, RTDB, Storage within limits)
+- Cloudflare Pages: FREE
 - OpenRouter: ~$6.50/month at 500 missions

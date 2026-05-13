@@ -1,16 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
+import { APP_CONFIG } from '@/config';
 
-const firebaseConfig = {
-  apiKey: 'AIzaSyB8j-jHo2N341ieW4AVCdPL3ipn4Ss8sYQ',
-  authDomain: 'ash-2026-photobook.firebaseapp.com',
-  databaseURL: 'https://ash-2026-photobook-default-rtdb.asia-southeast1.firebasedatabase.app',
-  projectId: 'ash-2026-photobook',
-  storageBucket: 'ash-2026-photobook.firebasestorage.app',
-  messagingSenderId: '328228907150',
-  appId: '1:328228907150:web:fb4d2780b40bb8403ec1df',
-};
+const firebaseConfig = APP_CONFIG.firebase;
 
 export const app = initializeApp(firebaseConfig, 'mission-hq');
 export const auth = getAuth(app);
