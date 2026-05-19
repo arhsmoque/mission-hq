@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ref, set, update, onValue } from 'firebase/database';
-import { rtdb, auth } from '@/lib/firebase';
+import { rtdb } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
 import { generateMissionId } from '@/lib/utils';
 import { callOpenRouter } from '@/lib/ai';
@@ -9,20 +9,20 @@ import { moduleSchema } from '@/lib/validators';
 import type { Mission, Module } from '@/types';
 
 export function useMission(missionId: string) {
-  const uid = auth.currentUser?.uid;
+  const profileId = useRootStore((s) => s.profileId);
   return useQuery({
-    queryKey: ['mission', missionId],
+    queryKey: ['mission', profileId, missionId],
     queryFn: () =>
       new Promise<Mission | null>((resolve) => {
-        if (!uid) return resolve(null);
-        const unsub = onValue(ref(rtdb, `mission_hq/missions/${uid}/${missionId}`), (snap) => {
+        if (!profileId) return resolve(null);
+        const unsub = onValue(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), (snap) => {
           if (!snap.exists()) resolve(null);
           else resolve({ missionId, ...snap.val() } as Mission);
         });
         return () => unsub();
       }),
     staleTime: Infinity,
-    enabled: !!uid && !!missionId,
+    enabled: !!profileId && !!missionId,
   });
 }
 
@@ -33,14 +33,14 @@ interface CreateMissionInput {
 }
 
 export function useCreateMission() {
-  const user = useRootStore((s) => s.user);
+  const profileId = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: CreateMissionInput): Promise<string> => {
-      if (!user) throw new Error('Not authenticated');
+      if (!profileId) throw new Error('No profile selected');
       const missionId = generateMissionId();
-      await set(ref(rtdb, `mission_hq/missions/${user.uid}/${missionId}`), {
-        uid: user.uid,
+      await set(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
+        profileId,
         title: 'Untitled Mission',
         client: 'Cikgu',
         status: 'pending',
@@ -82,12 +82,12 @@ async function tryGenerate(ocrText: string, model: string, temperature: number) 
 
 export function useGenerateModules() {
   const queryClient = useQueryClient();
-  const user = useRootStore((s) => s.user);
+  const profileId = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: GenerateModulesInput) => {
-      if (!user) throw new Error('Not authenticated');
-      const missionRef = ref(rtdb, `mission_hq/missions/${user.uid}/${input.missionId}`);
+      if (!profileId) throw new Error('No profile selected');
+      const missionRef = ref(rtdb, `mission_hq/missions/${profileId}/${input.missionId}`);
 
       const save = async (result: { missionTitle: string; modules: Module[] }) => {
         await update(missionRef, {
@@ -135,12 +135,12 @@ interface CompleteMissionInput {
 
 export function useCompleteMission() {
   const queryClient = useQueryClient();
-  const user = useRootStore((s) => s.user);
+  const profileId = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: CompleteMissionInput) => {
-      if (!user) throw new Error('Not authenticated');
-      await update(ref(rtdb, `mission_hq/missions/${user.uid}/${input.missionId}`), {
+      if (!profileId) throw new Error('No profile selected');
+      await update(ref(rtdb, `mission_hq/missions/${profileId}/${input.missionId}`), {
         status: 'completed',
         completedAt: Date.now(),
         'aiAnalysis/modules': input.modules,

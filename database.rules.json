@@ -10,21 +10,21 @@
     },
     "mission_hq": {
       "missions": {
-        "$uid": {
-          ".read": "auth != null && auth.uid === $uid",
-          ".write": "auth != null && auth.uid === $uid"
+        "$profileId": {
+          ".read": "auth != null",
+          ".write": "auth != null"
         }
       },
       "chats": {
         "$missionId": {
-          ".read": "auth != null && root.child('mission_hq/missions/' + auth.uid + '/' + $missionId).exists()",
-          ".write": "auth != null && root.child('mission_hq/missions/' + auth.uid + '/' + $missionId).exists()"
+          ".read": "auth != null",
+          ".write": "auth != null"
         }
       },
       "vocab": {
-        "$uid": {
-          ".read": "auth != null && auth.uid === $uid",
-          ".write": "auth != null && auth.uid === $uid"
+        "$profileId": {
+          ".read": "auth != null",
+          ".write": "auth != null"
         }
       }
     }

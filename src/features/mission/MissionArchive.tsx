@@ -1,17 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { ref, onValue } from 'firebase/database';
-import { rtdb, auth } from '@/lib/firebase';
+import { rtdb } from '@/lib/firebase';
+import { useRootStore } from '@/stores/rootStore';
 import type { Mission } from '@/types';
 
 export default function MissionArchive() {
-  const uid = auth.currentUser?.uid;
+  const profileId = useRootStore((s) => s.profileId);
 
   const { data: missions = [], isLoading } = useQuery({
-    queryKey: ['missions', uid],
+    queryKey: ['missions', profileId],
     queryFn: () =>
       new Promise<Mission[]>((resolve) => {
-        if (!uid) return resolve([]);
-        const unsub = onValue(ref(rtdb, `mission_hq/missions/${uid}`), (snap) => {
+        if (!profileId) return resolve([]);
+        const unsub = onValue(ref(rtdb, `mission_hq/missions/${profileId}`), (snap) => {
           if (!snap.exists()) return resolve([]);
           const items = Object.entries(snap.val() as Record<string, Omit<Mission, 'missionId'>>)
             .map(([id, data]) => ({ missionId: id, ...data } as Mission))
@@ -21,7 +22,7 @@ export default function MissionArchive() {
         return () => unsub();
       }),
     staleTime: Infinity,
-    enabled: !!uid,
+    enabled: !!profileId,
   });
 
   const active = missions.filter((m) => m.status === 'active');

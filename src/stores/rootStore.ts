@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { DEFAULT_MODEL_ID } from '@/lib/models';
+import type { ProfileId } from '@/features/profile/profiles';
 
 interface AuthSlice {
   user: { uid: string; displayName: string; avatarUrl: string } | null;
@@ -31,8 +32,14 @@ interface GamificationSlice {
   unlockGadget: (gadget: string) => void;
 }
 
+interface ProfileSlice {
+  profileId: ProfileId | null;
+  setProfile: (id: ProfileId) => void;
+  clearProfile: () => void;
+}
+
 export const useRootStore = create<
-  AuthSlice & MissionUISlice & ToolbeltSlice & GamificationSlice
+  AuthSlice & MissionUISlice & ToolbeltSlice & GamificationSlice & ProfileSlice
 >((set, get) => ({
   // Auth slice
   user: null,
@@ -68,5 +75,16 @@ export const useRootStore = create<
     if (!current.includes(gadget)) {
       set({ unlockedGadgets: [...current, gadget] });
     }
+  },
+
+  // Profile slice — persisted to localStorage
+  profileId: (localStorage.getItem('mission_room_profile') as ProfileId | null) ?? null,
+  setProfile: (id) => {
+    localStorage.setItem('mission_room_profile', id);
+    set({ profileId: id });
+  },
+  clearProfile: () => {
+    localStorage.removeItem('mission_room_profile');
+    set({ profileId: null });
   },
 }));

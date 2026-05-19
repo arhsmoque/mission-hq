@@ -33,7 +33,7 @@ export interface Module {
 
 export interface Mission {
   missionId: string;
-  uid: string;
+  profileId: string;
   title: string;
   client: string;
   status: 'pending' | 'active' | 'completed' | 'archived';
