@@ -8,8 +8,8 @@ export interface LlmModel {
 
 export const AVAILABLE_MODELS: LlmModel[] = [
   {
-    id: 'deepseek/deepseek-chat',
-    name: 'DeepSeek Chat',
+    id: 'deepseek/deepseek-chat-v3-0324:free',
+    name: 'DeepSeek V3 (Free)',
     provider: 'DeepSeek',
     description: 'Fast, capable general chat. Great for homework help.',
     contextWindow: 64000,
@@ -44,4 +44,4 @@ export const AVAILABLE_MODELS: LlmModel[] = [
   },
 ];
 
-export const DEFAULT_MODEL_ID = 'deepseek/deepseek-chat';
+export const DEFAULT_MODEL_ID = 'deepseek/deepseek-chat-v3-0324:free';

@@ -13,7 +13,7 @@ export default function MissionArchive() {
         if (!uid) return resolve([]);
         const unsub = onValue(ref(rtdb, `mission_hq/missions/${uid}`), (snap) => {
           if (!snap.exists()) return resolve([]);
-          const items = Object.entries(snap.val() as Record<string, any>)
+          const items = Object.entries(snap.val() as Record<string, Omit<Mission, 'missionId'>>)
             .map(([id, data]) => ({ missionId: id, ...data } as Mission))
             .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
           resolve(items);

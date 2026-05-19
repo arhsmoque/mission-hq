@@ -7,9 +7,10 @@ export default function FlashcardQuiz() {
   const [flipped, setFlipped] = useState(false);
   const [direction, setDirection] = useState<'zh-to-ms' | 'ms-to-zh'>('zh-to-ms');
 
+  const now = 0;
   const cards = vocab.length > 0 ? vocab : [
-    { character: '苹果', pinyin: 'píng guǒ', malay: 'epal', english: 'apple', vocabId: 'demo1' },
-    { character: '书本', pinyin: 'shū běn', malay: 'buku', english: 'book', vocabId: 'demo2' },
+    { character: '苹果', pinyin: 'píng guǒ', malay: 'epal', english: 'apple', vocabId: 'demo1', sourceMissionId: '', savedAt: now, reviewCount: 0, nextReview: now },
+    { character: '书本', pinyin: 'shū běn', malay: 'buku', english: 'book', vocabId: 'demo2', sourceMissionId: '', savedAt: now, reviewCount: 0, nextReview: now },
   ];
 
   const current = cards[index % cards.length];

@@ -17,8 +17,8 @@
       },
       "chats": {
         "$missionId": {
-          ".read": "auth != null",
-          ".write": "auth != null"
+          ".read": "auth != null && root.child('mission_hq/missions/' + auth.uid + '/' + $missionId).exists()",
+          ".write": "auth != null && root.child('mission_hq/missions/' + auth.uid + '/' + $missionId).exists()"
         }
       },
       "vocab": {

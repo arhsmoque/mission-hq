@@ -14,7 +14,7 @@ export function useVocabBank() {
         if (!uid) return resolve([]);
         const unsub = onValue(ref(rtdb, `mission_hq/vocab/${uid}`), (snap) => {
           if (!snap.exists()) return resolve([]);
-          const items = Object.entries(snap.val() as Record<string, any>)
+          const items = Object.entries(snap.val() as Record<string, Omit<VocabEntry, 'vocabId'>>)
             .map(([id, data]) => ({ vocabId: id, ...data } as VocabEntry))
             .sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0));
           resolve(items);

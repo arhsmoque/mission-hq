@@ -33,6 +33,6 @@ export const APP_CONFIG = {
   // ── App Defaults ──────────────────────────────────────────────────────────
   app: {
     name:          'Mission HQ',
-    defaultModel:  'deepseek/deepseek-chat-v3-0324',
+    defaultModel:  'deepseek/deepseek-chat-v3-0324:free',
   },
 } as const;

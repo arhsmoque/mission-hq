@@ -14,7 +14,7 @@ export function useChatMessages(missionId: string) {
         const chatsRef = ref(rtdb, `mission_hq/chats/${missionId}`);
         const unsub = onValue(chatsRef, (snap) => {
           if (!snap.exists()) return resolve([]);
-          const msgs = Object.entries(snap.val() as Record<string, any>)
+          const msgs = Object.entries(snap.val() as Record<string, Omit<ChatMessage, 'msgId'>>)
             .map(([id, data]) => ({ msgId: id, ...data } as ChatMessage))
             .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
           resolve(msgs);
@@ -57,9 +57,9 @@ export function useSendMessage() {
       const snap = await get(dbQuery(chatsRef, orderByChild('timestamp'), limitToLast(10)));
       const lastMessages: { role: string; content: string }[] = [];
       if (snap.exists()) {
-        Object.values(snap.val() as Record<string, any>)
-          .sort((a: any, b: any) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
-          .forEach((msg: any) => lastMessages.push({ role: msg.role, content: msg.content }));
+        Object.values(snap.val() as Record<string, Omit<ChatMessage, 'msgId'>>)
+          .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+          .forEach((msg) => lastMessages.push({ role: msg.role, content: msg.content }));
       }
 
       const promptMessages = buildChatPrompt({
