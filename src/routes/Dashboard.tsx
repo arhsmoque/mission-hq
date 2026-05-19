@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { signInAnonymously } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
 import { AVAILABLE_MODELS } from '@/lib/models';
 import { GADGETS } from '@/features/toolbelt/useToolbelt';
 import MissionArchive from '@/features/mission/MissionArchive';
+import ProfilePicker from '@/features/profile/ProfilePicker';
+import { PROFILES } from '@/features/profile/profiles';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, setUser, selectedModel, earnedBadges, unlockedGadgets } = useRootStore();
+  const { user, setUser, selectedModel, earnedBadges, unlockedGadgets, profileId, clearProfile } = useRootStore();
+  const queryClient = useQueryClient();
   const [showArchive, setShowArchive] = useState(false);
-
+  const profile = PROFILES.find((p) => p.id === profileId);
   const currentModel = AVAILABLE_MODELS.find((m) => m.id === selectedModel);
 
   useEffect(() => {
@@ -25,6 +29,8 @@ export default function Dashboard() {
       });
     }
   }, [user, setUser]);
+
+  if (!profileId) return <ProfilePicker />;
 
   return (
     <div className="p-6 max-w-xl mx-auto">
@@ -44,11 +50,24 @@ export default function Dashboard() {
       {user ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <span className="text-4xl">{user.avatarUrl}</span>
-            <div>
-              <p className="font-semibold">{user.displayName}</p>
+            <span
+              className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full border-2 text-3xl leading-none"
+              style={{ borderColor: profile?.color }}
+            >
+              {profile?.emoji}
+            </span>
+            <div className="flex-1">
+              <p className="text-lg font-extrabold" style={{ color: profile?.color }}>
+                {profile?.name}
+              </p>
               <p className="text-sm text-text-3">Ready for your next mission?</p>
             </div>
+            <button
+              onClick={() => { queryClient.clear(); clearProfile(); }}
+              className="rounded-full bg-surface px-3 py-1 text-xs text-text-3 border border-border"
+            >
+              Switch
+            </button>
           </div>
 
           {/* Badges */}

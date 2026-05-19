@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ref, update } from 'firebase/database';
-import { rtdb, auth } from '@/lib/firebase';
+import { rtdb } from '@/lib/firebase';
 import { useMission, useCompleteMission } from '@/features/mission/useMission';
 import ModuleChat from '@/features/mission/ModuleChat';
 import ModuleReorder from '@/features/mission/ModuleReorder';
@@ -14,7 +14,7 @@ export default function MissionView() {
   const navigate = useNavigate();
   const { data: mission, isLoading } = useMission(missionId || '');
   const completeMission = useCompleteMission();
-  const { addBadge, unlockGadget } = useRootStore();
+  const { addBadge, unlockGadget, profileId } = useRootStore();
 
   const [chatOpen, setChatOpen] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
@@ -27,12 +27,11 @@ export default function MissionView() {
   };
 
   const toggleModule = async (moduleId: number, current: boolean) => {
-    const uid = auth.currentUser?.uid;
-    if (!mission || !uid) return;
+    if (!mission || !profileId) return;
     const modules = mission.aiAnalysis.modules.map((m) =>
       m.id === moduleId ? { ...m, isComplete: !current } : m
     );
-    await update(ref(rtdb, `mission_hq/missions/${uid}/${missionId}`), {
+    await update(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
       'aiAnalysis/modules': modules,
     });
     if (modules.every((m) => m.isComplete) && !showComplete) {
@@ -48,9 +47,8 @@ export default function MissionView() {
   };
 
   const handleReorder = async (modules: Module[]) => {
-    const uid = auth.currentUser?.uid;
-    if (!mission || !uid) return;
-    await update(ref(rtdb, `mission_hq/missions/${uid}/${missionId}`), {
+    if (!mission || !profileId) return;
+    await update(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
       'aiAnalysis/modules': modules,
     });
   };

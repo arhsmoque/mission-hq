@@ -1,18 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ref, push, set, remove, onValue } from 'firebase/database';
-import { rtdb, auth } from '@/lib/firebase';
+import { rtdb } from '@/lib/firebase';
+import { useRootStore } from '@/stores/rootStore';
 import { annotateChinese } from '@/lib/chinese';
 import type { VocabEntry } from '@/types';
 
 export function useVocabBank() {
-  const uid = auth.currentUser?.uid;
+  const profileId = useRootStore((s) => s.profileId);
 
   return useQuery({
-    queryKey: ['vocab', uid],
+    queryKey: ['vocab', profileId],
     queryFn: () =>
       new Promise<VocabEntry[]>((resolve) => {
-        if (!uid) return resolve([]);
-        const unsub = onValue(ref(rtdb, `mission_hq/vocab/${uid}`), (snap) => {
+        if (!profileId) return resolve([]);
+        const unsub = onValue(ref(rtdb, `mission_hq/vocab/${profileId}`), (snap) => {
           if (!snap.exists()) return resolve([]);
           const items = Object.entries(snap.val() as Record<string, Omit<VocabEntry, 'vocabId'>>)
             .map(([id, data]) => ({ vocabId: id, ...data } as VocabEntry))
@@ -22,7 +23,7 @@ export function useVocabBank() {
         return () => unsub();
       }),
     staleTime: Infinity,
-    enabled: !!uid,
+    enabled: !!profileId,
   });
 }
 
@@ -36,12 +37,12 @@ interface SaveVocabInput {
 
 export function useSaveVocab() {
   const queryClient = useQueryClient();
-  const uid = auth.currentUser?.uid;
+  const profileId = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: SaveVocabInput) => {
-      if (!uid) throw new Error('Not authenticated');
-      await set(push(ref(rtdb, `mission_hq/vocab/${uid}`)), {
+      if (!profileId) throw new Error('No profile selected');
+      await set(push(ref(rtdb, `mission_hq/vocab/${profileId}`)), {
         ...input,
         savedAt: Date.now(),
         reviewCount: 0,
@@ -49,22 +50,22 @@ export function useSaveVocab() {
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vocab', uid] });
+      queryClient.invalidateQueries({ queryKey: ['vocab', profileId] });
     },
   });
 }
 
 export function useDeleteVocab() {
   const queryClient = useQueryClient();
-  const uid = auth.currentUser?.uid;
+  const profileId = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (vocabId: string) => {
-      if (!uid) throw new Error('Not authenticated');
-      await remove(ref(rtdb, `mission_hq/vocab/${uid}/${vocabId}`));
+      if (!profileId) throw new Error('No profile selected');
+      await remove(ref(rtdb, `mission_hq/vocab/${profileId}/${vocabId}`));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vocab', uid] });
+      queryClient.invalidateQueries({ queryKey: ['vocab', profileId] });
     },
   });
 }
