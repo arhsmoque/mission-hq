@@ -174,6 +174,7 @@ export default function MissionView() {
           missionId={missionId}
           moduleId={chatModule?.id}
           moduleTitle={chatModule?.title}
+          moduleGoal={chatModule?.goal}
           ocrText={mission.ocrText}
           onClose={() => setChatOpen(false)}
         />

@@ -7,11 +7,12 @@ interface ModuleChatProps {
   missionId: string;
   moduleId?: number;
   moduleTitle?: string;
+  moduleGoal?: string;
   ocrText: string;
   onClose: () => void;
 }
 
-export default function ModuleChat({ missionId, moduleId, moduleTitle, ocrText, onClose }: ModuleChatProps) {
+export default function ModuleChat({ missionId, moduleId, moduleTitle, moduleGoal, ocrText, onClose }: ModuleChatProps) {
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const selectedModel = useRootStore((s) => s.selectedModel);
@@ -39,6 +40,7 @@ export default function ModuleChat({ missionId, moduleId, moduleTitle, ocrText, 
       missionId,
       moduleId,
       moduleTitle,
+      moduleGoal,
       content: text,
       model: selectedModel,
       ocrText,
@@ -117,6 +119,9 @@ export default function ModuleChat({ missionId, moduleId, moduleTitle, ocrText, 
 
       {/* Input */}
       <div className="border-t border-border bg-surface p-3">
+        {sendMessage.isError && (
+          <p className="mb-2 text-xs text-red-500 text-center">Message failed to send. Please try again.</p>
+        )}
         <div className="flex gap-2">
           <input
             type="text"
