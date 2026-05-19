@@ -51,7 +51,7 @@ export const sendChatMessage = onCall({
 
     // Find module context if specified
     const moduleContext = moduleId !== undefined
-      ? modules.find((m: any) => m.id === moduleId)
+      ? (modules as Array<{ id: number; title: string; goal: string }>).find((m) => m.id === moduleId)
       : undefined;
 
     // Fetch last 10 messages
@@ -105,9 +105,10 @@ export const sendChatMessage = onCall({
       .set(assistantMsg);
 
     return { success: true, messageId: assistantMsg.msgId };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to process message';
     console.error('sendChatMessage error:', err);
-    throw new HttpsError('internal', err.message || 'Failed to process message');
+    throw new HttpsError('internal', message);
   }
 });
 
@@ -115,7 +116,7 @@ export const sendChatMessage = onCall({
 export const generateModules = onCall({
   region: 'asia-southeast1',
   cors: true,
-}, async (request) => {
+}, async () => {
   throw new HttpsError('unimplemented', 'Coming in Phase 3');
 });
 
@@ -123,6 +124,6 @@ export const generateModules = onCall({
 export const annotateChinese = onCall({
   region: 'asia-southeast1',
   cors: true,
-}, async (request) => {
+}, async () => {
   throw new HttpsError('unimplemented', 'Coming in Phase 4');
 });

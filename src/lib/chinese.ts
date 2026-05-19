@@ -28,16 +28,15 @@ export async function annotateChinese(
   const promptMessages = buildChinesePrompt(text, 'translate');
   const raw = await callOpenRouter(promptMessages, model, 0.3);
 
-  let malay = '';
-  let english = '';
+  let malay: string;
+  let english: string;
 
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw) as { malay?: string; english?: string };
     malay = parsed.malay || '';
     english = parsed.english || '';
   } catch {
-    // Fallback: if JSON fails, use raw text as both
     malay = raw.slice(0, 500);
     english = raw.slice(0, 500);
   }

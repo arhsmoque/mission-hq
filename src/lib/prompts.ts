@@ -81,14 +81,13 @@ CONSTRAINTS:
 }
 
 export function buildChinesePrompt(text: string, mode: 'pinyin' | 'translate' | 'both'): ChatMessage[] {
-  let instruction = '';
-  if (mode === 'pinyin') {
-    instruction = 'Add pinyin annotation to the following Chinese text using HTML ruby tags (<ruby><rt>...</rt></ruby>). Return ONLY the annotated HTML, no explanation.';
-  } else if (mode === 'translate') {
-    instruction = 'Translate the following Chinese text into Malay and English. Return ONLY a JSON object: {"malay": "...", "english": "..."}';
-  } else {
-    instruction = 'For the following Chinese text: (1) Add pinyin using HTML ruby tags, (2) Provide Malay and English translations. Return ONLY a JSON object: {"pinyinAnnotated": "<ruby>...</ruby>", "translations": {"malay": "...", "english": "..."}}';
-  }
+  const instruction =
+    mode === 'pinyin'
+      ? 'Add pinyin annotation to the following Chinese text using HTML ruby tags (<ruby><rt>...</rt></ruby>). Return ONLY the annotated HTML, no explanation.'
+      : mode === 'translate'
+      ? 'Translate the following Chinese text into Malay and English. Return ONLY a JSON object: {"malay": "...", "english": "..."}'
+      : 'For the following Chinese text: (1) Add pinyin using HTML ruby tags, (2) Provide Malay and English translations. Return ONLY a JSON object: {"pinyinAnnotated": "<ruby>...</ruby>", "translations": {"malay": "...", "english": "..."}}';
+
 
   return [
     { role: 'system', content: 'You are a Chinese language tutor for Malaysian primary school students.' },
