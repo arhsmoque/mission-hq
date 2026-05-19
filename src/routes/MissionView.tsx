@@ -74,6 +74,8 @@ export default function MissionView() {
     );
   }
 
+  const NODE_COLORS = ['#fda4af', '#86efac', '#7dd3fc'] as const;
+
   const modules = mission.aiAnalysis?.modules || [];
   const allComplete = modules.length > 0 && modules.every((m) => m.isComplete);
   const progress = modules.length > 0 ? Math.round((modules.filter((m) => m.isComplete).length / modules.length) * 100) : 0;
@@ -132,40 +134,65 @@ export default function MissionView() {
         {reorderMode ? (
           <ModuleReorder modules={modules} onReorder={handleReorder} />
         ) : (
-          modules.map((mod) => (
-            <div
-              key={mod.id}
-              className={`rounded-2xl bg-surface p-4 border shadow-sm transition-opacity ${
-                mod.isComplete ? 'opacity-60 border-green/30' : 'border-border'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <button
-                  onClick={() => toggleModule(mod.id, mod.isComplete)}
-                  className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 ${
-                    mod.isComplete
-                      ? 'border-green bg-green text-white'
-                      : 'border-text-3'
-                  }`}
-                >
-                  {mod.isComplete && '✓'}
-                </button>
-                <div className="flex-1">
-                  <h3 className={`font-semibold ${mod.isComplete ? 'line-through text-text-3' : 'text-primary'}`}>
-                    {mod.title}
-                  </h3>
-                  <p className="mt-1 text-sm text-text-2">{mod.goal}</p>
-                  <p className="mt-1 text-xs text-text-3 italic">Hint: {mod.hint}</p>
+          modules.map((mod, index) => {
+            const nodeColor = NODE_COLORS[index % 3];
+            const isLast = index === modules.length - 1;
+            return (
+              <div key={mod.id} className="flex gap-3">
+                {/* Node + vertical connector */}
+                <div className="flex flex-col items-center flex-shrink-0 pt-1">
+                  <button
+                    onClick={() => toggleModule(mod.id, mod.isComplete)}
+                    style={{
+                      borderColor: nodeColor,
+                      backgroundColor: mod.isComplete ? nodeColor : 'transparent',
+                      color: mod.isComplete ? '#000' : nodeColor,
+                      boxShadow: mod.isComplete
+                        ? `0 0 0 3px ${nodeColor}33, 0 0 14px ${nodeColor}44`
+                        : 'none',
+                    }}
+                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300"
+                  >
+                    {mod.isComplete ? '✓' : index + 1}
+                  </button>
+                  {!isLast && (
+                    <div
+                      className="w-px flex-1 min-h-6 mt-1 transition-colors duration-500"
+                      style={{
+                        backgroundColor: mod.isComplete
+                          ? `${nodeColor}44`
+                          : 'rgba(255,255,255,0.06)',
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Content card */}
+                <div className="flex-1 pb-5">
+                  <div
+                    className={`rounded-2xl bg-surface p-4 border transition-opacity duration-300 ${mod.isComplete ? 'opacity-50' : ''}`}
+                    style={{
+                      borderColor: mod.isComplete
+                        ? `${nodeColor}22`
+                        : 'rgba(255,255,255,0.06)',
+                    }}
+                  >
+                    <h3 className={`font-semibold ${mod.isComplete ? 'line-through text-text-3' : 'text-primary'}`}>
+                      {mod.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-text-2">{mod.goal}</p>
+                    <p className="mt-1 text-xs text-text-3 italic">Hint: {mod.hint}</p>
+                    <button
+                      onClick={() => openChat({ id: mod.id, title: mod.title, goal: mod.goal })}
+                      className="mt-3 w-full rounded-lg bg-bg-2 py-2 text-xs font-semibold text-text-2 active:scale-[0.98]"
+                    >
+                      Ask for Help on This Step
+                    </button>
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={() => openChat({ id: mod.id, title: mod.title, goal: mod.goal })}
-                className="mt-3 w-full rounded-lg bg-bg-2 py-2 text-xs font-semibold text-text-2 active:scale-[0.98]"
-              >
-                Ask for Help on This Step
-              </button>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

@@ -1,11 +1,11 @@
 {
-  "name": "Mission HQ",
-  "short_name": "MissionHQ",
-  "description": "Turn homework into missions!",
+  "name": "Mission Room",
+  "short_name": "Mission Room",
+  "description": "Asma · Aflah · Haidar",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FEF7EE",
-  "theme_color": "#FEF7EE",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait",
   "icons": [
     {

@@ -29,8 +29,9 @@ export default function Dashboard() {
   return (
     <div className="p-6 max-w-xl mx-auto">
       <header className="mb-6">
-        <h1 className="font-display text-3xl font-black text-primary">Mission HQ</h1>
-        <p className="text-text-2">Turn homework into missions!</p>
+        <h1 className="font-display text-3xl font-black text-primary">Mission Room</h1>
+        <p className="text-[10px] tracking-[0.25em] uppercase text-text-3 mt-0.5">asmaflahaidar</p>
+        <p className="text-sm text-text-2 mt-2">Turn homework into missions!</p>
       </header>
 
       {currentModel && (
