@@ -27,12 +27,12 @@ export const APP_CONFIG = {
   openrouter: {
     key:      OR_PREFIX + OR_SUFFIX,
     referer:  'https://mission-hq.pages.dev',
-    title:    'Mission HQ',
+    title:    'Mission Room',
   },
 
   // ── App Defaults ──────────────────────────────────────────────────────────
   app: {
-    name:          'Mission HQ',
+    name:          'Mission Room',
     defaultModel:  'deepseek/deepseek-chat-v3-0324:free',
   },
 } as const;
