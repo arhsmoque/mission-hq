@@ -28,7 +28,7 @@ export const APP_CONFIG = {
   // ── OpenRouter (client-side, $3 cap — family use only) ───────────────────
   openrouter: {
     key:     OR_PREFIX + OR_SUFFIX,
-    referer: 'https://mission-hq.pages.dev',
+    referer: 'https://mission-hq.arh-homelab.workers.dev',
     title:   'Mission Room',
   },
 
