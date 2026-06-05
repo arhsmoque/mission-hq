@@ -14,8 +14,8 @@ import { APP_CONFIG } from '@/config';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Free-tier vision model — excellent at multilingual worksheet OCR.
-const OCR_MODEL = 'google/gemini-2.0-flash-exp:free';
+// Tops OCRBench v2 (June 2026). Free tier. Optimised for document intelligence.
+const OCR_MODEL = 'nvidia/nemotron-nano-12b-v2-vl:free';
 
 const OR_HEADERS = {
   'Content-Type':       'application/json',
