@@ -1,13 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ref, set, update, onValue } from 'firebase/database';
-import { rtdb } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
 import { generateMissionId } from '@/lib/utils';
-import { callOpenRouter } from '@/lib/ai';
+import { aiAdapter, missionStorage } from '@/adapters';
 import { buildModuleGenPrompt } from '@/lib/prompts';
 import { moduleSchema } from '@/lib/validators';
 import type { Mission, Module } from '@/types';
 
+/** Subscribe to a single mission. Resolves once on load; mutations invalidate to refresh. */
 export function useMission(missionId: string) {
   const profileId = useRootStore((s) => s.profileId);
   return useQuery({
@@ -15,14 +14,31 @@ export function useMission(missionId: string) {
     queryFn: () =>
       new Promise<Mission | null>((resolve) => {
         if (!profileId) return resolve(null);
-        const unsub = onValue(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), (snap) => {
-          if (!snap.exists()) resolve(null);
-          else resolve({ missionId, ...snap.val() } as Mission);
+        const unsub = missionStorage.subscribeMission(profileId, missionId, (m) => {
+          resolve(m);
+          unsub();
         });
-        return () => unsub();
       }),
     staleTime: Infinity,
     enabled: !!profileId && !!missionId,
+  });
+}
+
+/** Subscribe to all missions for the active profile. */
+export function useAllMissions() {
+  const profileId = useRootStore((s) => s.profileId);
+  return useQuery({
+    queryKey: ['missions', profileId],
+    queryFn: () =>
+      new Promise<Mission[]>((resolve) => {
+        if (!profileId) return resolve([]);
+        const unsub = missionStorage.subscribeAllMissions(profileId, (ms) => {
+          resolve(ms);
+          unsub();
+        });
+      }),
+    staleTime: Infinity,
+    enabled: !!profileId,
   });
 }
 
@@ -39,7 +55,7 @@ export function useCreateMission() {
     mutationFn: async (input: CreateMissionInput): Promise<string> => {
       if (!profileId) throw new Error('No profile selected');
       const missionId = generateMissionId();
-      await set(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
+      await missionStorage.createMission(profileId, missionId, {
         profileId,
         title: 'Untitled Mission',
         client: 'Cikgu',
@@ -64,7 +80,7 @@ interface GenerateModulesInput {
 
 async function tryGenerate(ocrText: string, model: string, temperature: number) {
   const promptMessages = buildModuleGenPrompt(ocrText);
-  const rawResponse = await callOpenRouter(promptMessages, model, temperature);
+  const rawResponse = await aiAdapter.chat(promptMessages, model, temperature);
   const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
   const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawResponse);
   const validated = moduleSchema.parse(parsed);
@@ -87,10 +103,9 @@ export function useGenerateModules() {
   return useMutation({
     mutationFn: async (input: GenerateModulesInput) => {
       if (!profileId) throw new Error('No profile selected');
-      const missionRef = ref(rtdb, `mission_hq/missions/${profileId}/${input.missionId}`);
 
       const save = async (result: { missionTitle: string; modules: Module[] }) => {
-        await update(missionRef, {
+        await missionStorage.updateMission(profileId, input.missionId, {
           title: result.missionTitle,
           status: 'active',
           'aiAnalysis/model': input.model,
@@ -107,11 +122,11 @@ export function useGenerateModules() {
           return await save(await tryGenerate(input.ocrText, input.model, 0.2));
         } catch {
           const fallback: Module[] = [
-            { id: 1, title: 'Read the Problem', goal: 'Understand what is being asked', hint: 'Read slowly and circle key words', reflectionPrompt: 'What is the question asking for?', isComplete: false },
-            { id: 2, title: 'Plan Your Solution', goal: 'Choose a strategy', hint: 'Think about what operation or method to use', reflectionPrompt: 'What strategy will you try?', isComplete: false },
-            { id: 3, title: 'Solve and Check', goal: 'Work through and verify', hint: 'Do the work step by step', reflectionPrompt: 'Does your answer make sense?', isComplete: false },
+            { id: 1, title: 'Read the Problem',   goal: 'Understand what is being asked', hint: 'Read slowly and circle key words',              reflectionPrompt: 'What is the question asking for?', isComplete: false },
+            { id: 2, title: 'Plan Your Solution', goal: 'Choose a strategy',               hint: 'Think about what operation or method to use', reflectionPrompt: 'What strategy will you try?',       isComplete: false },
+            { id: 3, title: 'Solve and Check',    goal: 'Work through and verify',         hint: 'Do the work step by step',                   reflectionPrompt: 'Does your answer make sense?',   isComplete: false },
           ];
-          await update(missionRef, {
+          await missionStorage.updateMission(profileId, input.missionId, {
             title: 'Untitled Mission',
             status: 'active',
             'aiAnalysis/model': input.model,
@@ -123,7 +138,7 @@ export function useGenerateModules() {
       }
     },
     onSuccess: (_, input) => {
-      queryClient.invalidateQueries({ queryKey: ['mission', input.missionId] });
+      queryClient.invalidateQueries({ queryKey: ['mission', profileId, input.missionId] });
     },
   });
 }
@@ -140,7 +155,7 @@ export function useCompleteMission() {
   return useMutation({
     mutationFn: async (input: CompleteMissionInput) => {
       if (!profileId) throw new Error('No profile selected');
-      await update(ref(rtdb, `mission_hq/missions/${profileId}/${input.missionId}`), {
+      await missionStorage.updateMission(profileId, input.missionId, {
         status: 'completed',
         completedAt: Date.now(),
         'aiAnalysis/modules': input.modules,
@@ -149,7 +164,7 @@ export function useCompleteMission() {
       return { badgeId: completedCount >= 5 ? 'mission_master' : 'first_win' };
     },
     onSuccess: (_, input) => {
-      queryClient.invalidateQueries({ queryKey: ['mission', input.missionId] });
+      queryClient.invalidateQueries({ queryKey: ['mission', profileId, input.missionId] });
     },
   });
 }

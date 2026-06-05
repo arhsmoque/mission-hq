@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ref, update } from 'firebase/database';
-import { rtdb } from '@/lib/firebase';
 import { useMission, useCompleteMission } from '@/features/mission/useMission';
+import { missionStorage } from '@/adapters';
 import ModuleChat from '@/features/mission/ModuleChat';
 import ModuleReorder from '@/features/mission/ModuleReorder';
 import MissionComplete from '@/features/mission/MissionComplete';
@@ -27,11 +26,11 @@ export default function MissionView() {
   };
 
   const toggleModule = async (moduleId: number, current: boolean) => {
-    if (!mission || !profileId) return;
+    if (!mission || !profileId || !missionId) return;
     const modules = mission.aiAnalysis.modules.map((m) =>
       m.id === moduleId ? { ...m, isComplete: !current } : m
     );
-    await update(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
+    await missionStorage.updateMission(profileId, missionId, {
       'aiAnalysis/modules': modules,
     });
     if (modules.every((m) => m.isComplete) && !showComplete) {
@@ -47,8 +46,8 @@ export default function MissionView() {
   };
 
   const handleReorder = async (modules: Module[]) => {
-    if (!mission || !profileId) return;
-    await update(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
+    if (!mission || !profileId || !missionId) return;
+    await missionStorage.updateMission(profileId, missionId, {
       'aiAnalysis/modules': modules,
     });
   };
@@ -76,7 +75,9 @@ export default function MissionView() {
 
   const modules = mission.aiAnalysis?.modules || [];
   const allComplete = modules.length > 0 && modules.every((m) => m.isComplete);
-  const progress = modules.length > 0 ? Math.round((modules.filter((m) => m.isComplete).length / modules.length) * 100) : 0;
+  const progress = modules.length > 0
+    ? Math.round((modules.filter((m) => m.isComplete).length / modules.length) * 100)
+    : 0;
 
   return (
     <div className="p-6 max-w-xl mx-auto">
