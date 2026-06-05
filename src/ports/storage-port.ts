@@ -8,32 +8,32 @@
  *
  * Current implementation: Firebase Realtime Database (RTDB)
  * Data paths:
- *   missions  →  mission_hq/missions/{profileId}/{missionId}
- *   chat      →  mission_hq/chats/{missionId}
+ *   missions  →  mission_hq/missions/{uid}/{missionId}
+ *   chat      →  mission_hq/chats/{uid}/{missionId}
  */
 
 import type { Mission, ChatMessage } from '@/types';
 
 export interface MissionStoragePort {
   subscribeMission(
-    profileId: string,
+    uid: string,
     missionId: string,
     onChange: (mission: Mission | null) => void
   ): () => void;
 
   subscribeAllMissions(
-    profileId: string,
+    uid: string,
     onChange: (missions: Mission[]) => void
   ): () => void;
 
   createMission(
-    profileId: string,
+    uid: string,
     missionId: string,
     data: Omit<Mission, 'missionId'>
   ): Promise<void>;
 
   updateMission(
-    profileId: string,
+    uid: string,
     missionId: string,
     patch: Record<string, unknown>
   ): Promise<void>;
@@ -41,16 +41,19 @@ export interface MissionStoragePort {
 
 export interface ChatStoragePort {
   subscribeMessages(
+    uid: string,
     missionId: string,
     onChange: (messages: ChatMessage[]) => void
   ): () => void;
 
   addMessage(
+    uid: string,
     missionId: string,
     msg: Omit<ChatMessage, 'msgId'>
   ): Promise<string>;
 
   getRecentMessages(
+    uid: string,
     missionId: string,
     limit: number
   ): Promise<Array<{ role: string; content: string }>>;

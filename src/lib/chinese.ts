@@ -26,8 +26,8 @@ export async function annotateChinese(
   const promptMessages = buildChinesePrompt(text, 'translate');
   const raw = await aiAdapter.chat(promptMessages, model, 0.3);
 
-  let malay = '';
-  let english = '';
+  let malay: string;
+  let english: string;
 
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
