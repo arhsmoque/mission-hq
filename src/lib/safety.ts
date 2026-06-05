@@ -3,15 +3,15 @@ export function sanitizeResponse(response: string, ocrText: string): string {
   const responseNumbers = response.match(/\b\d+(?:\.\d+)?\b/g) || [];
 
   for (const num of responseNumbers) {
-    if (ocrNumbers.has(num) && response.length < 150) {
+    if (ocrNumbers.has(num)) {
       return "That's a great question! What strategy could you use to find out? Try breaking it into smaller parts or drawing a diagram.";
     }
   }
 
   const directAnswerPatterns = [
-    /^\s*The answer is\s*\d+/i,
-    /^\s*It'?s\s*\d+/i,
-    /^\s*\d+\s*(is the answer|is correct)/i,
+    /The answer is\s*\d+/i,
+    /It'?s\s*\d+/i,
+    /\d+\s*(is the answer|is correct)/i,
   ];
 
   for (const pattern of directAnswerPatterns) {

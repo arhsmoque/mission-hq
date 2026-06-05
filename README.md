@@ -62,3 +62,16 @@ npx wrangler pages deploy dist --project-name mission-hq
 - Firebase Spark plan: FREE (Auth, RTDB, Storage within limits)
 - Cloudflare Pages: FREE
 - OpenRouter: ~$6.50/month at 500 missions
+
+## Local Mode
+
+A localStorage-only variant exists in `src/lib/localDb.ts`. It replaces Firebase with browser storage — useful for offline testing or family devices without internet access to Firebase.
+
+| Feature | Cloud (default) | Local mode |
+|---|---|---|
+| Auth | Firebase Anonymous | Auto-generated local uid |
+| Database | Firebase Realtime DB | `localStorage` |
+| Deploy | Cloudflare Pages | Any static host |
+| AI | OpenRouter (client-side) | OpenRouter (client-side) |
+
+To use local mode: swap `useMission.ts` and `useChat.ts` imports from `firebase/database` → `@/lib/localDb`. A `StorageAdapter` interface to make this switchable at runtime is a future ADR.

@@ -10,21 +10,27 @@
     },
     "mission_hq": {
       "missions": {
-        "$profileId": {
-          ".read": "auth != null",
-          ".write": "auth != null"
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
         }
       },
       "chats": {
-        "$missionId": {
-          ".read": "auth != null",
-          ".write": "auth != null"
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
         }
       },
       "vocab": {
-        "$profileId": {
-          ".read": "auth != null",
-          ".write": "auth != null"
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      },
+      "progress": {
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
         }
       }
     }

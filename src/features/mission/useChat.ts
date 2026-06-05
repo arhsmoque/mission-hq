@@ -1,17 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ref, push, set, onValue, query as dbQuery, orderByChild, limitToLast, get } from 'firebase/database';
 import { rtdb, auth } from '@/lib/firebase';
+import { useRootStore } from '@/stores/rootStore';
 import { callOpenRouter } from '@/lib/ai';
 import { buildChatPrompt } from '@/lib/prompts';
 import { sanitizeResponse } from '@/lib/safety';
 import type { ChatMessage } from '@/types';
 
 export function useChatMessages(missionId: string) {
+  const user = useRootStore((s) => s.user);
   return useQuery({
-    queryKey: ['chatMessages', missionId],
+    queryKey: ['chatMessages', user?.uid, missionId],
     queryFn: () =>
       new Promise<ChatMessage[]>((resolve) => {
-        const chatsRef = ref(rtdb, `mission_hq/chats/${missionId}`);
+        if (!user?.uid) return resolve([]);
+        const chatsRef = ref(rtdb, `mission_hq/chats/${user.uid}/${missionId}`);
         const unsub = onValue(chatsRef, (snap) => {
           if (!snap.exists()) return resolve([]);
           const msgs = Object.entries(snap.val() as Record<string, Omit<ChatMessage, 'msgId'>>)
@@ -22,6 +25,7 @@ export function useChatMessages(missionId: string) {
         return () => unsub();
       }),
     staleTime: Infinity,
+    enabled: !!user?.uid && !!missionId,
   });
 }
 
@@ -38,12 +42,13 @@ interface SendMessageInput {
 
 export function useSendMessage() {
   const queryClient = useQueryClient();
+  const user = useRootStore((s) => s.user);
 
   return useMutation({
     mutationFn: async (input: SendMessageInput) => {
-      if (!auth.currentUser) throw new Error('Not authenticated');
+      if (!auth.currentUser || !user?.uid) throw new Error('Not authenticated');
 
-      const chatsRef = ref(rtdb, `mission_hq/chats/${input.missionId}`);
+      const chatsRef = ref(rtdb, `mission_hq/chats/${user.uid}/${input.missionId}`);
 
       await set(push(chatsRef), {
         role: 'user',
@@ -86,7 +91,8 @@ export function useSendMessage() {
       return { success: true };
     },
     onSuccess: (_, input) => {
-      queryClient.invalidateQueries({ queryKey: ['chatMessages', input.missionId] });
+      const uid = useRootStore.getState().user?.uid;
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', uid, input.missionId] });
     },
   });
 }

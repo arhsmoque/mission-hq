@@ -9,20 +9,20 @@ import { moduleSchema } from '@/lib/validators';
 import type { Mission, Module } from '@/types';
 
 export function useMission(missionId: string) {
-  const profileId = useRootStore((s) => s.profileId);
+  const user = useRootStore((s) => s.user);
   return useQuery({
-    queryKey: ['mission', profileId, missionId],
+    queryKey: ['mission', user?.uid, missionId],
     queryFn: () =>
       new Promise<Mission | null>((resolve) => {
-        if (!profileId) return resolve(null);
-        const unsub = onValue(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), (snap) => {
+        if (!user?.uid) return resolve(null);
+        const unsub = onValue(ref(rtdb, `mission_hq/missions/${user.uid}/${missionId}`), (snap) => {
           if (!snap.exists()) resolve(null);
           else resolve({ missionId, ...snap.val() } as Mission);
         });
         return () => unsub();
       }),
     staleTime: Infinity,
-    enabled: !!profileId && !!missionId,
+    enabled: !!user?.uid && !!missionId,
   });
 }
 
@@ -33,14 +33,14 @@ interface CreateMissionInput {
 }
 
 export function useCreateMission() {
-  const profileId = useRootStore((s) => s.profileId);
+  const user = useRootStore((s) => s.user);
 
   return useMutation({
     mutationFn: async (input: CreateMissionInput): Promise<string> => {
-      if (!profileId) throw new Error('No profile selected');
+      if (!user?.uid) throw new Error('Not authenticated');
       const missionId = generateMissionId();
-      await set(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
-        profileId,
+      await set(ref(rtdb, `mission_hq/missions/${user.uid}/${missionId}`), {
+        profileId: '', // set by caller if needed
         title: 'Untitled Mission',
         client: 'Cikgu',
         status: 'pending',
@@ -82,12 +82,12 @@ async function tryGenerate(ocrText: string, model: string, temperature: number) 
 
 export function useGenerateModules() {
   const queryClient = useQueryClient();
-  const profileId = useRootStore((s) => s.profileId);
+  const user = useRootStore((s) => s.user);
 
   return useMutation({
     mutationFn: async (input: GenerateModulesInput) => {
-      if (!profileId) throw new Error('No profile selected');
-      const missionRef = ref(rtdb, `mission_hq/missions/${profileId}/${input.missionId}`);
+      if (!user?.uid) throw new Error('Not authenticated');
+      const missionRef = ref(rtdb, `mission_hq/missions/${user.uid}/${input.missionId}`);
 
       const save = async (result: { missionTitle: string; modules: Module[] }) => {
         await update(missionRef, {
@@ -123,7 +123,8 @@ export function useGenerateModules() {
       }
     },
     onSuccess: (_, input) => {
-      queryClient.invalidateQueries({ queryKey: ['mission', input.missionId] });
+      const uid = useRootStore.getState().user?.uid;
+      queryClient.invalidateQueries({ queryKey: ['mission', uid, input.missionId] });
     },
   });
 }
@@ -135,12 +136,12 @@ interface CompleteMissionInput {
 
 export function useCompleteMission() {
   const queryClient = useQueryClient();
-  const profileId = useRootStore((s) => s.profileId);
+  const user = useRootStore((s) => s.user);
 
   return useMutation({
     mutationFn: async (input: CompleteMissionInput) => {
-      if (!profileId) throw new Error('No profile selected');
-      await update(ref(rtdb, `mission_hq/missions/${profileId}/${input.missionId}`), {
+      if (!user?.uid) throw new Error('Not authenticated');
+      await update(ref(rtdb, `mission_hq/missions/${user.uid}/${input.missionId}`), {
         status: 'completed',
         completedAt: Date.now(),
         'aiAnalysis/modules': input.modules,
@@ -149,7 +150,8 @@ export function useCompleteMission() {
       return { badgeId: completedCount >= 5 ? 'mission_master' : 'first_win' };
     },
     onSuccess: (_, input) => {
-      queryClient.invalidateQueries({ queryKey: ['mission', input.missionId] });
+      const uid = useRootStore.getState().user?.uid;
+      queryClient.invalidateQueries({ queryKey: ['mission', uid, input.missionId] });
     },
   });
 }

@@ -9,10 +9,11 @@ import { GADGETS } from '@/features/toolbelt/useToolbelt';
 import MissionArchive from '@/features/mission/MissionArchive';
 import ProfilePicker from '@/features/profile/ProfilePicker';
 import { PROFILES } from '@/features/profile/profiles';
+import { loadGamificationOnce } from '@/lib/gamification';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, setUser, selectedModel, earnedBadges, unlockedGadgets, profileId, clearProfile } = useRootStore();
+  const { user, setUser, selectedModel, earnedBadges, unlockedGadgets, addBadge, unlockGadget, profileId, clearProfile } = useRootStore();
   const queryClient = useQueryClient();
   const [showArchive, setShowArchive] = useState(false);
   const profile = PROFILES.find((p) => p.id === profileId);
@@ -29,6 +30,19 @@ export default function Dashboard() {
       });
     }
   }, [user, setUser]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    loadGamificationOnce(user.uid).then((data) => {
+      if (!data) return;
+      data.badges.forEach((b) => {
+        if (!earnedBadges.includes(b)) addBadge(b);
+      });
+      data.gadgets.forEach((g) => {
+        if (!unlockedGadgets.includes(g)) unlockGadget(g);
+      });
+    });
+  }, [user?.uid, addBadge, unlockGadget, earnedBadges, unlockedGadgets]);
 
   if (!profileId) return <ProfilePicker />;
 

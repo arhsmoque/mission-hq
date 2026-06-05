@@ -7,6 +7,7 @@ import ModuleChat from '@/features/mission/ModuleChat';
 import ModuleReorder from '@/features/mission/ModuleReorder';
 import MissionComplete from '@/features/mission/MissionComplete';
 import { useRootStore } from '@/stores/rootStore';
+import { persistGamification } from '@/lib/gamification';
 import type { Module } from '@/types';
 
 export default function MissionView() {
@@ -14,7 +15,7 @@ export default function MissionView() {
   const navigate = useNavigate();
   const { data: mission, isLoading } = useMission(missionId || '');
   const completeMission = useCompleteMission();
-  const { addBadge, unlockGadget, profileId } = useRootStore();
+  const { addBadge, unlockGadget, user } = useRootStore();
 
   const [chatOpen, setChatOpen] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
@@ -27,11 +28,11 @@ export default function MissionView() {
   };
 
   const toggleModule = async (moduleId: number, current: boolean) => {
-    if (!mission || !profileId) return;
+    if (!mission || !user?.uid) return;
     const modules = mission.aiAnalysis.modules.map((m) =>
       m.id === moduleId ? { ...m, isComplete: !current } : m
     );
-    await update(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
+    await update(ref(rtdb, `mission_hq/missions/${user.uid}/${missionId}`), {
       'aiAnalysis/modules': modules,
     });
     if (modules.every((m) => m.isComplete) && !showComplete) {
@@ -43,12 +44,16 @@ export default function MissionView() {
     const result = await completeMission.mutateAsync({ missionId: missionId!, modules });
     addBadge(result.badgeId);
     unlockGadget('vocab_definer');
+    if (user?.uid) {
+      const state = useRootStore.getState();
+      persistGamification(user.uid, state.earnedBadges, state.unlockedGadgets);
+    }
     setShowComplete(true);
   };
 
   const handleReorder = async (modules: Module[]) => {
-    if (!mission || !profileId) return;
-    await update(ref(rtdb, `mission_hq/missions/${profileId}/${missionId}`), {
+    if (!mission || !user?.uid) return;
+    await update(ref(rtdb, `mission_hq/missions/${user.uid}/${missionId}`), {
       'aiAnalysis/modules': modules,
     });
   };
