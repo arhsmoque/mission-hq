@@ -1,12 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ref, push, set, onValue, query as dbQuery, orderByChild, limitToLast, get } from 'firebase/database';
-import { rtdb, auth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
-import { callOpenRouter } from '@/lib/ai';
+import { aiAdapter, chatStorage } from '@/adapters';
 import { buildChatPrompt } from '@/lib/prompts';
 import { sanitizeResponse } from '@/lib/safety';
 import type { ChatMessage } from '@/types';
 
+/** Subscribe to all chat messages for a mission. Resolves once; mutations invalidate to refresh. */
 export function useChatMessages(missionId: string) {
   const user = useRootStore((s) => s.user);
   return useQuery({
@@ -14,15 +14,10 @@ export function useChatMessages(missionId: string) {
     queryFn: () =>
       new Promise<ChatMessage[]>((resolve) => {
         if (!user?.uid) return resolve([]);
-        const chatsRef = ref(rtdb, `mission_hq/chats/${user.uid}/${missionId}`);
-        const unsub = onValue(chatsRef, (snap) => {
-          if (!snap.exists()) return resolve([]);
-          const msgs = Object.entries(snap.val() as Record<string, Omit<ChatMessage, 'msgId'>>)
-            .map(([id, data]) => ({ msgId: id, ...data } as ChatMessage))
-            .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+        const unsub = chatStorage.subscribeMessages(user.uid, missionId, (msgs) => {
           resolve(msgs);
+          unsub();
         });
-        return () => unsub();
       }),
     staleTime: Infinity,
     enabled: !!user?.uid && !!missionId,
@@ -48,45 +43,39 @@ export function useSendMessage() {
     mutationFn: async (input: SendMessageInput) => {
       if (!auth.currentUser || !user?.uid) throw new Error('Not authenticated');
 
-      const chatsRef = ref(rtdb, `mission_hq/chats/${user.uid}/${input.missionId}`);
-
-      await set(push(chatsRef), {
-        role: 'user',
-        content: input.content,
-        moduleId: input.moduleId ?? null,
-        gadgetUsed: input.gadgetContext || null,
+      const userMsg: Omit<ChatMessage, 'msgId'> = {
+        role:      'user',
+        content:   input.content,
+        moduleId:  input.moduleId ?? undefined,
+        gadgetUsed: input.gadgetContext || undefined,
         modelUsed: input.model,
         timestamp: Date.now(),
-      });
+      };
+      await chatStorage.addMessage(user.uid, input.missionId, userMsg);
 
-      const snap = await get(dbQuery(chatsRef, orderByChild('timestamp'), limitToLast(10)));
-      const lastMessages: { role: string; content: string }[] = [];
-      if (snap.exists()) {
-        Object.values(snap.val() as Record<string, Omit<ChatMessage, 'msgId'>>)
-          .sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
-          .forEach((msg) => lastMessages.push({ role: msg.role, content: msg.content }));
-      }
+      const lastMessages = await chatStorage.getRecentMessages(user.uid, input.missionId, 10);
 
       const promptMessages = buildChatPrompt({
-        ocrText: input.ocrText,
+        ocrText:     input.ocrText,
         moduleTitle: input.moduleTitle,
-        moduleGoal: input.moduleGoal,
+        moduleGoal:  input.moduleGoal,
         gadgetContext: input.gadgetContext,
         lastMessages,
       });
       promptMessages.push({ role: 'user', content: input.content });
 
-      const rawResponse = await callOpenRouter(promptMessages, input.model, 0.7);
+      const rawResponse  = await aiAdapter.chat(promptMessages, input.model, 0.7);
       const safeResponse = sanitizeResponse(rawResponse, input.ocrText);
 
-      await set(push(chatsRef), {
-        role: 'assistant',
-        content: safeResponse,
-        moduleId: input.moduleId ?? null,
-        gadgetUsed: input.gadgetContext || null,
+      const assistantMsg: Omit<ChatMessage, 'msgId'> = {
+        role:      'assistant',
+        content:   safeResponse,
+        moduleId:  input.moduleId ?? undefined,
+        gadgetUsed: input.gadgetContext || undefined,
         modelUsed: input.model,
         timestamp: Date.now(),
-      });
+      };
+      await chatStorage.addMessage(user.uid, input.missionId, assistantMsg);
 
       return { success: true };
     },

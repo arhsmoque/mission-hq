@@ -1,5 +1,5 @@
 import { html as pinyinHtml } from 'pinyin-pro';
-import { callOpenRouter } from './ai';
+import { aiAdapter } from '@/adapters';
 import { buildChinesePrompt } from './prompts';
 
 export interface ChineseAnnotation {
@@ -21,25 +21,26 @@ export async function annotateChinese(
   text: string,
   model: string
 ): Promise<ChineseAnnotation> {
-  // Client-side pinyin first
-  const pinyinHtml = addPinyinClient(text);
+  const localPinyin = addPinyinClient(text);
 
-  // OpenRouter for translation
   const promptMessages = buildChinesePrompt(text, 'translate');
-  const raw = await callOpenRouter(promptMessages, model, 0.3);
+  const raw = await aiAdapter.chat(promptMessages, model, 0.3);
 
-  let malay: string;
-  let english: string;
+  let malay = '';
+  let english = '';
 
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw) as { malay?: string; english?: string };
-    malay = parsed.malay || '';
-    english = parsed.english || '';
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw) as {
+      malay?: string;
+      english?: string;
+    };
+    malay   = parsed.malay   ?? '';
+    english = parsed.english ?? '';
   } catch {
-    malay = raw.slice(0, 500);
+    malay   = raw.slice(0, 500);
     english = raw.slice(0, 500);
   }
 
-  return { original: text, pinyinHtml, malay, english };
+  return { original: text, pinyinHtml: localPinyin, malay, english };
 }

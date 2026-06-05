@@ -1,13 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ref, set, update, onValue } from 'firebase/database';
-import { rtdb } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
 import { generateMissionId } from '@/lib/utils';
-import { callOpenRouter } from '@/lib/ai';
+import { aiAdapter, missionStorage } from '@/adapters';
 import { buildModuleGenPrompt } from '@/lib/prompts';
 import { moduleSchema } from '@/lib/validators';
 import type { Mission, Module } from '@/types';
 
+/** Subscribe to a single mission. Resolves once on load; mutations invalidate to refresh. */
 export function useMission(missionId: string) {
   const user = useRootStore((s) => s.user);
   return useQuery({
@@ -15,14 +14,31 @@ export function useMission(missionId: string) {
     queryFn: () =>
       new Promise<Mission | null>((resolve) => {
         if (!user?.uid) return resolve(null);
-        const unsub = onValue(ref(rtdb, `mission_hq/missions/${user.uid}/${missionId}`), (snap) => {
-          if (!snap.exists()) resolve(null);
-          else resolve({ missionId, ...snap.val() } as Mission);
+        const unsub = missionStorage.subscribeMission(user.uid, missionId, (m) => {
+          resolve(m);
+          unsub();
         });
-        return () => unsub();
       }),
     staleTime: Infinity,
     enabled: !!user?.uid && !!missionId,
+  });
+}
+
+/** Subscribe to all missions for the active user. */
+export function useAllMissions() {
+  const user = useRootStore((s) => s.user);
+  return useQuery({
+    queryKey: ['missions', user?.uid],
+    queryFn: () =>
+      new Promise<Mission[]>((resolve) => {
+        if (!user?.uid) return resolve([]);
+        const unsub = missionStorage.subscribeAllMissions(user.uid, (ms) => {
+          resolve(ms);
+          unsub();
+        });
+      }),
+    staleTime: Infinity,
+    enabled: !!user?.uid,
   });
 }
 
@@ -39,7 +55,7 @@ export function useCreateMission() {
     mutationFn: async (input: CreateMissionInput): Promise<string> => {
       if (!user?.uid) throw new Error('Not authenticated');
       const missionId = generateMissionId();
-      await set(ref(rtdb, `mission_hq/missions/${user.uid}/${missionId}`), {
+      await missionStorage.createMission(user.uid, missionId, {
         profileId: '', // set by caller if needed
         title: 'Untitled Mission',
         client: 'Cikgu',
@@ -64,7 +80,7 @@ interface GenerateModulesInput {
 
 async function tryGenerate(ocrText: string, model: string, temperature: number) {
   const promptMessages = buildModuleGenPrompt(ocrText);
-  const rawResponse = await callOpenRouter(promptMessages, model, temperature);
+  const rawResponse = await aiAdapter.chat(promptMessages, model, temperature);
   const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
   const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawResponse);
   const validated = moduleSchema.parse(parsed);
@@ -87,10 +103,9 @@ export function useGenerateModules() {
   return useMutation({
     mutationFn: async (input: GenerateModulesInput) => {
       if (!user?.uid) throw new Error('Not authenticated');
-      const missionRef = ref(rtdb, `mission_hq/missions/${user.uid}/${input.missionId}`);
 
       const save = async (result: { missionTitle: string; modules: Module[] }) => {
-        await update(missionRef, {
+        await missionStorage.updateMission(user.uid, input.missionId, {
           title: result.missionTitle,
           status: 'active',
           'aiAnalysis/model': input.model,
@@ -107,11 +122,11 @@ export function useGenerateModules() {
           return await save(await tryGenerate(input.ocrText, input.model, 0.2));
         } catch {
           const fallback: Module[] = [
-            { id: 1, title: 'Read the Problem', goal: 'Understand what is being asked', hint: 'Read slowly and circle key words', reflectionPrompt: 'What is the question asking for?', isComplete: false },
-            { id: 2, title: 'Plan Your Solution', goal: 'Choose a strategy', hint: 'Think about what operation or method to use', reflectionPrompt: 'What strategy will you try?', isComplete: false },
-            { id: 3, title: 'Solve and Check', goal: 'Work through and verify', hint: 'Do the work step by step', reflectionPrompt: 'Does your answer make sense?', isComplete: false },
+            { id: 1, title: 'Read the Problem',   goal: 'Understand what is being asked', hint: 'Read slowly and circle key words',              reflectionPrompt: 'What is the question asking for?', isComplete: false },
+            { id: 2, title: 'Plan Your Solution', goal: 'Choose a strategy',               hint: 'Think about what operation or method to use', reflectionPrompt: 'What strategy will you try?',       isComplete: false },
+            { id: 3, title: 'Solve and Check',    goal: 'Work through and verify',         hint: 'Do the work step by step',                   reflectionPrompt: 'Does your answer make sense?',   isComplete: false },
           ];
-          await update(missionRef, {
+          await missionStorage.updateMission(user.uid, input.missionId, {
             title: 'Untitled Mission',
             status: 'active',
             'aiAnalysis/model': input.model,
@@ -141,7 +156,7 @@ export function useCompleteMission() {
   return useMutation({
     mutationFn: async (input: CompleteMissionInput) => {
       if (!user?.uid) throw new Error('Not authenticated');
-      await update(ref(rtdb, `mission_hq/missions/${user.uid}/${input.missionId}`), {
+      await missionStorage.updateMission(user.uid, input.missionId, {
         status: 'completed',
         completedAt: Date.now(),
         'aiAnalysis/modules': input.modules,

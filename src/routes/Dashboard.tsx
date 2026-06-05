@@ -25,7 +25,7 @@ export default function Dashboard() {
         setUser({
           uid: cred.user.uid,
           displayName: 'Agent',
-          avatarUrl: '\uD83E\uDD16',
+          avatarUrl: '🤖',
         });
       });
     }
@@ -136,7 +136,7 @@ export default function Dashboard() {
               onClick={() => navigate('/chinese-lab')}
               className="rounded-2xl bg-surface p-4 text-center shadow-sm active:scale-[0.98] border border-border"
             >
-              <span className="text-2xl">\uD83C\uDC04</span>
+              <span className="text-2xl">🀄</span>
               <p className="mt-1 text-sm font-semibold">Chinese Lab</p>
             </button>
           </div>
@@ -145,7 +145,7 @@ export default function Dashboard() {
             onClick={() => navigate('/toolbelt')}
             className="w-full rounded-2xl bg-surface p-4 text-center shadow-sm active:scale-[0.98] border border-border"
           >
-            <span className="text-2xl">\uD83E\uDDF0</span>
+            <span className="text-2xl">🧰</span>
             <p className="mt-1 text-sm font-semibold">My Toolbelt</p>
           </button>
 
