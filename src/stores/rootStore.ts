@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { DEFAULT_MODEL_ID } from '@/lib/models';
 import type { ProfileId } from '@/features/profile/profiles';
+import type { AuthUser } from '@/types';
 
 interface AuthSlice {
-  user: { uid: string; displayName: string; avatarUrl: string } | null;
+  user: AuthUser | null;
   authReady: boolean;
-  setUser: (user: AuthSlice['user']) => void;
+  setUser: (user: AuthUser | null) => void;
   setAuthReady: (ready: boolean) => void;
 }
 
@@ -66,15 +67,11 @@ export const useRootStore = create<
   unlockedGadgets: ['hint_machine'],
   addBadge: (badge) => {
     const current = get().earnedBadges;
-    if (!current.includes(badge)) {
-      set({ earnedBadges: [...current, badge] });
-    }
+    if (!current.includes(badge)) set({ earnedBadges: [...current, badge] });
   },
   unlockGadget: (gadget) => {
     const current = get().unlockedGadgets;
-    if (!current.includes(gadget)) {
-      set({ unlockedGadgets: [...current, gadget] });
-    }
+    if (!current.includes(gadget)) set({ unlockedGadgets: [...current, gadget] });
   },
 
   // Profile slice — persisted to localStorage
