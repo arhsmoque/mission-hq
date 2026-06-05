@@ -34,7 +34,7 @@ export interface Mission {
   status: 'pending' | 'active' | 'completed' | 'archived';
   fileUrl?: string;
   ocrText: string;
-  ocrEngine: 'tesseract' | 'google_vision';
+  ocrEngine: 'tesseract' | 'google_vision' | 'vision_llm';
   aiAnalysis: {
     model: string;
     generatedAt: number;

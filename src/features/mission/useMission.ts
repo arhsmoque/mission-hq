@@ -44,7 +44,7 @@ export function useAllMissions() {
 
 interface CreateMissionInput {
   ocrText: string;
-  ocrEngine: 'tesseract' | 'google_vision';
+  ocrEngine: 'tesseract' | 'google_vision' | 'vision_llm';
   confidence: number;
 }
 

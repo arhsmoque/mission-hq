@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UploadDropzone from '@/features/mission/UploadDropzone';
 import OcrPreview from '@/features/mission/OcrPreview';
-import { runOcr } from '@/lib/tesseract';
+import { runOcr, type OcrResult } from '@/lib/ocr';
 import { useCreateMission, useGenerateModules } from '@/features/mission/useMission';
 import { useRootStore } from '@/stores/rootStore';
 
@@ -16,7 +16,7 @@ export default function NewMission() {
 
   const [step, setStep] = useState<Step>('upload');
   const [previewUrl, setPreviewUrl] = useState('');
-  const [ocrResult, setOcrResult] = useState({ text: '', confidence: 0 });
+  const [ocrResult, setOcrResult] = useState<OcrResult>({ text: '', confidence: 0, engine: 'vision_llm' });
 
   const handleFileSelect = useCallback(async (file: File, url: string) => {
     setPreviewUrl(url);
@@ -38,7 +38,7 @@ export default function NewMission() {
       try {
         const missionId = await createMission.mutateAsync({
           ocrText: editedText,
-          ocrEngine: 'tesseract',
+          ocrEngine: ocrResult.engine,
           confidence: ocrResult.confidence,
         });
         setStep('generating');
@@ -59,7 +59,7 @@ export default function NewMission() {
 
   const handleRetry = useCallback(() => {
     setPreviewUrl('');
-    setOcrResult({ text: '', confidence: 0 });
+    setOcrResult({ text: '', confidence: 0, engine: 'vision_llm' });
     setStep('upload');
   }, []);
 

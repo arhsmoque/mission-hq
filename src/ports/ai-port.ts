@@ -14,10 +14,19 @@ export interface AIChatMessage {
   content: string;
 }
 
+export interface OcrResult {
+  text: string;
+  confidence: number;
+  engine: 'vision_llm' | 'tesseract';
+}
+
 export interface AIPort {
   chat(
     messages: AIChatMessage[],
     model: string,
     temperature?: number
   ): Promise<string>;
+
+  /** Extract text from an image using a vision model. */
+  ocrImage(imageBase64: string, mimeType: string): Promise<OcrResult>;
 }
