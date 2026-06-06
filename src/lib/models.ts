@@ -8,25 +8,25 @@ export interface LlmModel {
 
 export const AVAILABLE_MODELS: LlmModel[] = [
   {
-    id: 'deepseek/deepseek-chat-v3-0324:free',
-    name: 'DeepSeek V3 (Free)',
+    id: 'deepseek/deepseek-v4-flash:free',
+    name: 'DeepSeek V4 Flash (Free)',
     provider: 'DeepSeek',
-    description: 'Fast, capable general chat. Great for homework help.',
-    contextWindow: 64000,
+    description: 'Fast, highly capable — great default for homework help.',
+    contextWindow: 1048576,
   },
   {
-    id: 'anthropic/claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
+    id: 'anthropic/claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
     provider: 'Anthropic',
     description: 'Best for complex reasoning and module generation.',
     contextWindow: 200000,
   },
   {
-    id: 'google/gemini-flash-1.5',
-    name: 'Gemini Flash 1.5',
+    id: 'google/gemma-4-31b-it:free',
+    name: 'Gemma 4 31B (Free)',
     provider: 'Google',
-    description: 'Blazing fast, great for quick chat responses.',
-    contextWindow: 1000000,
+    description: 'Strong vision and reasoning, completely free.',
+    contextWindow: 128000,
   },
   {
     id: 'openai/gpt-4o-mini',
@@ -36,12 +36,12 @@ export const AVAILABLE_MODELS: LlmModel[] = [
     contextWindow: 128000,
   },
   {
-    id: 'meta-llama/llama-3.3-70b-instruct',
-    name: 'Llama 3.3 70B',
-    provider: 'Meta',
-    description: 'Open model, strong instruction following.',
-    contextWindow: 128000,
+    id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+    name: 'Nemotron 3 Nano Omni (Free)',
+    provider: 'NVIDIA',
+    description: 'Multimodal reasoning — text, image, audio. Free tier.',
+    contextWindow: 300000,
   },
 ];
 
-export const DEFAULT_MODEL_ID = 'deepseek/deepseek-chat-v3-0324:free';
+export const DEFAULT_MODEL_ID = 'deepseek/deepseek-v4-flash:free';
