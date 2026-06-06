@@ -1,29 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
-import { ref, onValue } from 'firebase/database';
-import { rtdb } from '@/lib/firebase';
-import { useRootStore } from '@/stores/rootStore';
-import type { Mission } from '@/types';
+import { useMissions } from './useMissions';
 
 export default function MissionArchive() {
-  const user = useRootStore((s) => s.user);
-
-  const { data: missions = [], isLoading } = useQuery({
-    queryKey: ['missions', user?.uid],
-    queryFn: () =>
-      new Promise<Mission[]>((resolve) => {
-        if (!user?.uid) return resolve([]);
-        const unsub = onValue(ref(rtdb, `mission_hq/missions/${user.uid}`), (snap) => {
-          if (!snap.exists()) return resolve([]);
-          const items = Object.entries(snap.val() as Record<string, Omit<Mission, 'missionId'>>)
-            .map(([id, data]) => ({ missionId: id, ...data } as Mission))
-            .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-          resolve(items);
-        });
-        return () => unsub();
-      }),
-    staleTime: Infinity,
-    enabled: !!user?.uid,
-  });
+  const { data: missions = [], isLoading } = useMissions();
 
   const active = missions.filter((m) => m.status === 'active');
   const completed = missions.filter((m) => m.status === 'completed');

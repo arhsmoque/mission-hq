@@ -9,7 +9,9 @@
     "build": "tsc -b && vite build",
     "deploy": "npm run build && wrangler deploy",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -46,6 +48,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
+    "vitest": "^2.1.9",
     "wrangler": "^4.0.0"
   }
 }
