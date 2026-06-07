@@ -13,10 +13,10 @@
  * That single indirection is what makes provider swaps a one-file change.
  */
 
-import { openrouterAdapter }                              from './ai/openrouter-adapter';
+import { geminiAdapter }                                   from './ai/gemini-adapter';
 import { firebaseMissionAdapter, firebaseChatAdapter }    from './storage/firebase-rtdb-adapter';
 
 // ── Active adapters ────────────────────────────────────────────────────────
-export const aiAdapter      = openrouterAdapter;        // AIPort
+export const aiAdapter      = geminiAdapter;            // AIPort
 export const missionStorage = firebaseMissionAdapter;   // MissionStoragePort
 export const chatStorage    = firebaseChatAdapter;      // ChatStoragePort
