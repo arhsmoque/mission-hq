@@ -29,6 +29,10 @@ functions/lib/
 .DS_Store
 Thumbs.db
 
+# Wrangler
+.wrangler/
+.wrangler-dry-run/
+
 # Logs
 *.log
 npm-debug.log*

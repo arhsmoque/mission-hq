@@ -36,5 +36,10 @@ export default defineConfig({
       '100.85.219.219',
       '100.85.130.130',
     ],
+    proxy: {
+      // Proxy /api/* to the Cloudflare Worker dev server during `npm run dev`.
+      // Run `wrangler dev --port 8787` in a second terminal.
+      '/api': 'http://localhost:8787',
+    },
   },
 })
