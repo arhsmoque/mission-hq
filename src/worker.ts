@@ -27,11 +27,17 @@ export interface Env {
 }
 
 // Vertex AI endpoint — accepts cloud-platform scope (same as Gemini CLI auth)
-const GCP_PROJECT = 'ash-2026-photobook';
-const GCP_LOCATION = 'us-central1';
-const GEMINI_BASE = `https://${GCP_LOCATION}-aiplatform.googleapis.com/v1/projects/${GCP_PROJECT}/locations/${GCP_LOCATION}/publishers/google/models`;
-const TOKEN_URL   = 'https://oauth2.googleapis.com/token';
-const OCR_MODEL   = 'gemini-2.5-flash';
+// gemini-3.x models require the global endpoint; 2.x models use us-central1.
+const GCP_PROJECT        = 'ash-2026-photobook';
+const GCP_LOCATION       = 'us-central1';
+const GEMINI_BASE_REGIONAL = `https://${GCP_LOCATION}-aiplatform.googleapis.com/v1/projects/${GCP_PROJECT}/locations/${GCP_LOCATION}/publishers/google/models`;
+const GEMINI_BASE_GLOBAL   = `https://aiplatform.googleapis.com/v1/projects/${GCP_PROJECT}/locations/global/publishers/google/models`;
+const TOKEN_URL            = 'https://oauth2.googleapis.com/token';
+const OCR_MODEL            = 'gemini-2.5-flash';
+
+function geminiBase(model: string): string {
+  return model.startsWith('gemini-3') ? GEMINI_BASE_GLOBAL : GEMINI_BASE_REGIONAL;
+}
 
 // Access-token cache — lives for the lifetime of the isolate (minutes to hours).
 let cachedToken: { value: string; expiresAt: number } | null = null;
@@ -121,7 +127,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const accessToken = await getAccessToken(env);
   const payload     = toGeminiPayload(messages, temperature);
 
-  const res = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
+  const res = await fetch(`${geminiBase(model)}/${model}:generateContent`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body:    JSON.stringify(payload),
@@ -162,7 +168,7 @@ async function handleOcr(request: Request, env: Env): Promise<Response> {
     generationConfig: { temperature: 0 },
   };
 
-  const res = await fetch(`${GEMINI_BASE}/${OCR_MODEL}:generateContent`, {
+  const res = await fetch(`${geminiBase(OCR_MODEL)}/${OCR_MODEL}:generateContent`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body:    JSON.stringify(payload),

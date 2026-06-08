@@ -28,6 +28,13 @@ export const AVAILABLE_MODELS: LlmModel[] = [
     description:   'Fastest response — efficient for routine chat tasks.',
     contextWindow: 1_000_000,
   },
+  {
+    id:            'gemini-3.1-pro-preview',
+    name:          'Gemini 3.1 Pro (Preview)',
+    provider:      'Google',
+    description:   'Most advanced reasoning — complex multi-step problems.',
+    contextWindow: 1_000_000,
+  },
 ];
 
 export const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
