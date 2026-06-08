@@ -29,10 +29,10 @@ export const AVAILABLE_MODELS: LlmModel[] = [
     contextWindow: 1_000_000,
   },
   {
-    id:            'gemini-3.1-pro-preview',
-    name:          'Gemini 3.1 Pro (Preview)',
+    id:            'gemini-2.5-pro-preview',
+    name:          'Gemini 2.5 Pro',
     provider:      'Google',
-    description:   'Most advanced reasoning — complex multi-step problems.',
+    description:   'Most capable on AI Studio — best for complex reasoning.',
     contextWindow: 1_000_000,
   },
 ];
