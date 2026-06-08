@@ -26,7 +26,10 @@ export interface Env {
   GOOGLE_CLIENT_SECRET: string;
 }
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+// Vertex AI endpoint — accepts cloud-platform scope (same as Gemini CLI auth)
+const GCP_PROJECT = 'ash-2026-photobook';
+const GCP_LOCATION = 'us-central1';
+const GEMINI_BASE = `https://${GCP_LOCATION}-aiplatform.googleapis.com/v1/projects/${GCP_PROJECT}/locations/${GCP_LOCATION}/publishers/google/models`;
 const TOKEN_URL   = 'https://oauth2.googleapis.com/token';
 const OCR_MODEL   = 'gemini-2.5-flash';
 
@@ -118,7 +121,7 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
   const accessToken = await getAccessToken(env);
   const payload     = toGeminiPayload(messages, temperature);
 
-  const res = await fetch(`${GEMINI_BASE}/models/${model}:generateContent`, {
+  const res = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body:    JSON.stringify(payload),
@@ -159,7 +162,7 @@ async function handleOcr(request: Request, env: Env): Promise<Response> {
     generationConfig: { temperature: 0 },
   };
 
-  const res = await fetch(`${GEMINI_BASE}/models/${OCR_MODEL}:generateContent`, {
+  const res = await fetch(`${GEMINI_BASE}/${OCR_MODEL}:generateContent`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
     body:    JSON.stringify(payload),
