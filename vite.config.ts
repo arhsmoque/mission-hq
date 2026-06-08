@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -41,5 +42,9 @@ export default defineConfig({
       // Run `wrangler dev --port 8787` in a second terminal.
       '/api': 'http://localhost:8787',
     },
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
   },
 })

@@ -3,6 +3,29 @@ import { DEFAULT_MODEL_ID } from '@/lib/models';
 import type { ProfileId } from '@/features/profile/profiles';
 import type { AuthUser } from '@/types';
 
+interface StoredPrefs {
+  earnedBadges: string[];
+  unlockedGadgets: string[];
+  activeGadgets: string[];
+  selectedModel: string;
+}
+
+function loadPrefs(profileId: string): Partial<StoredPrefs> {
+  try {
+    const raw = localStorage.getItem(`mhq_prefs_${profileId}`);
+    return raw ? (JSON.parse(raw) as Partial<StoredPrefs>) : {};
+  } catch { return {}; }
+}
+
+function savePrefs(profileId: string, update: Partial<StoredPrefs>) {
+  try {
+    localStorage.setItem(
+      `mhq_prefs_${profileId}`,
+      JSON.stringify({ ...loadPrefs(profileId), ...update })
+    );
+  } catch {}
+}
+
 interface AuthSlice {
   user: AuthUser | null;
   authReady: boolean;
@@ -39,16 +62,17 @@ interface ProfileSlice {
   clearProfile: () => void;
 }
 
+const _initProfileId = localStorage.getItem('mission_room_profile') as ProfileId | null;
+const _initPrefs = _initProfileId ? loadPrefs(_initProfileId) : {};
+
 export const useRootStore = create<
   AuthSlice & MissionUISlice & ToolbeltSlice & GamificationSlice & ProfileSlice
 >((set, get) => ({
-  // Auth slice
   user: null,
   authReady: false,
   setUser: (user) => set({ user }),
   setAuthReady: (ready) => set({ authReady: ready }),
 
-  // Mission UI slice
   activeMissionId: null,
   activeModuleId: null,
   chatOpen: false,
@@ -56,29 +80,49 @@ export const useRootStore = create<
   setActiveModuleId: (id) => set({ activeModuleId: id }),
   setChatOpen: (open) => set({ chatOpen: open }),
 
-  // Toolbelt slice
-  activeGadgets: ['hint_machine'],
-  setActiveGadgets: (gadgets) => set({ activeGadgets: gadgets }),
-  selectedModel: DEFAULT_MODEL_ID,
-  setSelectedModel: (model) => set({ selectedModel: model }),
+  activeGadgets: _initPrefs.activeGadgets ?? ['hint_machine'],
+  setActiveGadgets: (gadgets) => {
+    const { profileId } = get();
+    set({ activeGadgets: gadgets });
+    if (profileId) savePrefs(profileId, { activeGadgets: gadgets });
+  },
+  selectedModel: _initPrefs.selectedModel ?? DEFAULT_MODEL_ID,
+  setSelectedModel: (model) => {
+    const { profileId } = get();
+    set({ selectedModel: model });
+    if (profileId) savePrefs(profileId, { selectedModel: model });
+  },
 
-  // Gamification slice
-  earnedBadges: [],
-  unlockedGadgets: ['hint_machine'],
+  earnedBadges: _initPrefs.earnedBadges ?? [],
+  unlockedGadgets: _initPrefs.unlockedGadgets ?? ['hint_machine'],
   addBadge: (badge) => {
-    const current = get().earnedBadges;
-    if (!current.includes(badge)) set({ earnedBadges: [...current, badge] });
+    const { earnedBadges, profileId } = get();
+    if (!earnedBadges.includes(badge)) {
+      const next = [...earnedBadges, badge];
+      set({ earnedBadges: next });
+      if (profileId) savePrefs(profileId, { earnedBadges: next });
+    }
   },
   unlockGadget: (gadget) => {
-    const current = get().unlockedGadgets;
-    if (!current.includes(gadget)) set({ unlockedGadgets: [...current, gadget] });
+    const { unlockedGadgets, profileId } = get();
+    if (!unlockedGadgets.includes(gadget)) {
+      const next = [...unlockedGadgets, gadget];
+      set({ unlockedGadgets: next });
+      if (profileId) savePrefs(profileId, { unlockedGadgets: next });
+    }
   },
 
-  // Profile slice — persisted to localStorage
-  profileId: (localStorage.getItem('mission_room_profile') as ProfileId | null) ?? null,
+  profileId: _initProfileId,
   setProfile: (id) => {
     localStorage.setItem('mission_room_profile', id);
-    set({ profileId: id });
+    const prefs = loadPrefs(id);
+    set({
+      profileId: id,
+      earnedBadges:    prefs.earnedBadges    ?? [],
+      unlockedGadgets: prefs.unlockedGadgets ?? ['hint_machine'],
+      activeGadgets:   prefs.activeGadgets   ?? ['hint_machine'],
+      selectedModel:   prefs.selectedModel   ?? DEFAULT_MODEL_ID,
+    });
   },
   clearProfile: () => {
     localStorage.removeItem('mission_room_profile');
