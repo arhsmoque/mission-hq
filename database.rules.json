@@ -51,6 +51,10 @@
           ".write": "auth != null && auth.uid == $uid"
         }
       },
+      "resources": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
       "analytics": {
         "sessions": {
           "$uid": {

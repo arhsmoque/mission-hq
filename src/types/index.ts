@@ -166,7 +166,57 @@ export interface Lesson {
   updatedAt: number;
 }
 
-// ── Analytics ──────────────────────────────────────────────────────────────
+// ── Resource Directory ─────────────────────────────────────────────────────
+
+export type SchoolType = 'sk' | 'srjk_c' | 'srjk_t' | 'kafa' | 'tadika' | 'other';
+
+export const SCHOOL_TYPE_LABELS: Record<SchoolType, string> = {
+  sk:      'SK',
+  srjk_c: 'SRJKC',
+  srjk_t: 'SRJKT',
+  kafa:   'KAFA',
+  tadika: 'Tadika',
+  other:  'Other',
+};
+
+export const SUBJECTS = [
+  'maths', 'malay', 'english', 'chinese', 'tamil',
+  'science', 'islamic', 'moral', 'kafa', 'mixed',
+] as const;
+
+export type Subject = typeof SUBJECTS[number];
+
+export const SUBJECT_LABELS: Record<Subject, string> = {
+  maths:   'Matematik',
+  malay:   'Bahasa Melayu',
+  english: 'English',
+  chinese: 'Bahasa Cina',
+  tamil:   'Bahasa Tamil',
+  science: 'Sains',
+  islamic: 'Pendidikan Islam',
+  moral:   'Pendidikan Moral',
+  kafa:    'KAFA',
+  mixed:   'Mixed / General',
+};
+
+export type ResourceStatus = 'pending' | 'extracting' | 'ready' | 'error';
+
+export interface ResourceEntry {
+  resourceId: string;
+  url: string;
+  label: string;
+  sourceType: 'anyflip' | 'fliphtml5' | 'pdf_url' | 'website';
+  schoolType: SchoolType;
+  subject: Subject;
+  yearLevel: number;      // 1–6 (Malaysian primary Tahun 1–6)
+  description?: string;
+  status: ResourceStatus;
+  errorMessage?: string;
+  pageCount?: number;
+  addedBy: string;
+  addedAt: number;
+  extractedAt?: number;
+}
 
 export interface AnalyticsSession {
   sessionId: string;

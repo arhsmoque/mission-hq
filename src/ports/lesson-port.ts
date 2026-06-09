@@ -19,6 +19,7 @@ import type {
   LessonSection,
   AnalyticsSession,
   MethodEffectiveness,
+  ResourceEntry,
 } from '@/types';
 
 export interface MethodRegistryPort {
@@ -35,6 +36,14 @@ export interface LessonStoragePort {
   subscribeLesson(uid: string, lessonId: string, onChange: (lesson: Lesson | null) => void): () => void;
   subscribeAllLessons(uid: string, onChange: (lessons: Lesson[]) => void): () => void;
   updateSection(uid: string, lessonId: string, sectionId: string, patch: Partial<LessonSection>): Promise<void>;
+}
+
+export interface ResourceDirectoryPort {
+  addResource(resource: Omit<ResourceEntry, 'resourceId'>): Promise<string>;
+  updateResource(resourceId: string, patch: Partial<ResourceEntry>): Promise<void>;
+  deleteResource(resourceId: string): Promise<void>;
+  subscribeResources(onChange: (resources: ResourceEntry[]) => void): () => void;
+  getResourcesByYear(yearLevel: number): Promise<ResourceEntry[]>;
 }
 
 export interface AnalyticsPort {

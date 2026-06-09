@@ -3,8 +3,9 @@ import { useRootStore } from '@/stores/rootStore';
 import PinGate from './PinGate';
 import AdminChat from './AdminChat';
 import ModelPicker from './ModelPicker';
+import ResourceDirectory from './ResourceDirectory';
 
-type AdminTab = 'chat' | 'settings';
+type AdminTab = 'chat' | 'directory' | 'settings';
 
 export default function AdminPanel() {
   const adminUnlocked = useRootStore((s) => s.adminUnlocked);
@@ -22,18 +23,18 @@ export default function AdminPanel() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-2">
-          {(['chat', 'settings'] as AdminTab[]).map((t) => (
+          {(['chat', 'directory', 'settings'] as AdminTab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`rounded-xl px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
+              className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${
                 tab === t
                   ? 'bg-accent text-bg'
                   : 'bg-bg-2 text-text-2 hover:text-text'
               }`}
               style={{ minHeight: 'unset', minWidth: 'unset' }}
             >
-              {t === 'chat' ? 'Direct Chat' : 'Settings'}
+              {t === 'chat' ? 'Chat' : t === 'directory' ? 'Directory' : 'Settings'}
             </button>
           ))}
         </div>
@@ -51,6 +52,12 @@ export default function AdminPanel() {
       {tab === 'chat' && (
         <div className="flex-1 min-h-0">
           <AdminChat />
+        </div>
+      )}
+
+      {tab === 'directory' && (
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <ResourceDirectory />
         </div>
       )}
 
