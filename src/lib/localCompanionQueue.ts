@@ -82,12 +82,14 @@ export async function waitForLocalCompanionResult(
   const jobId = await createLocalCompanionJob(uid, input);
 
   return new Promise((resolve, reject) => {
+    let unsubscribe: Unsubscribe = () => {};
+
     const timeout = window.setTimeout(() => {
       unsubscribe();
       reject(new Error(`Local companion timed out after ${Math.round(timeoutMs / 1000)}s. Job: ${jobId}`));
     }, timeoutMs);
 
-    const unsubscribe = subscribeLocalCompanionJob(uid, jobId, (job) => {
+    unsubscribe = subscribeLocalCompanionJob(uid, jobId, (job) => {
       if (!job) return;
 
       if (job.status === 'done') {
