@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ModelPicker from '@/features/toolbelt/ModelPicker';
 import GadgetPicker from '@/features/toolbelt/GadgetPicker';
 import AssistantConfig from '@/features/toolbelt/AssistantConfig';
+import AdminPanel from '@/features/toolbelt/AdminPanel';
 import { useMissions } from '@/features/mission/useMissions';
 
 export default function Toolbelt() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'gadgets' | 'assistant' | 'model'>('gadgets');
+  const [tab, setTab] = useState<'gadgets' | 'assistant' | 'admin'>('gadgets');
   const { data: missions = [] } = useMissions();
   const completedMissions = missions.filter((m) => m.status === 'completed').length;
 
@@ -21,7 +21,7 @@ export default function Toolbelt() {
       </h1>
 
       <div className="flex gap-2 mb-6">
-        {(['gadgets', 'assistant', 'model'] as const).map((t) => (
+        {(['gadgets', 'assistant', 'admin'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -48,10 +48,10 @@ export default function Toolbelt() {
         </section>
       )}
 
-      {tab === 'model' && (
+      {tab === 'admin' && (
         <section className="rounded-2xl bg-surface p-5 shadow-sm border border-border">
-          <h2 className="font-semibold text-primary mb-3">AI Brain</h2>
-          <ModelPicker />
+          <h2 className="font-semibold text-primary mb-4">Admin</h2>
+          <AdminPanel />
         </section>
       )}
     </div>

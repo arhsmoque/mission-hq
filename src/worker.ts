@@ -84,9 +84,18 @@ async function handleChat(request: Request, env: Env): Promise<Response> {
 
   const data = await res.json() as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
   };
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  return json({ text });
+  const usage = data.usageMetadata;
+  return json({
+    text,
+    tokens: usage ? {
+      prompt:     usage.promptTokenCount     ?? 0,
+      completion: usage.candidatesTokenCount ?? 0,
+      total:      usage.totalTokenCount      ?? 0,
+    } : undefined,
+  });
 }
 
 async function handleOcr(request: Request, env: Env): Promise<Response> {

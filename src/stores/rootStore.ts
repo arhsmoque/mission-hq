@@ -3,6 +3,9 @@ import { DEFAULT_MODEL_ID } from '@/lib/models';
 import type { ProfileId } from '@/features/profile/profiles';
 import type { AuthUser } from '@/types';
 
+const ADMIN_MODEL_KEY = 'mhq_admin_model';
+const DEFAULT_ADMIN_MODEL = 'gemini-2.5-pro';
+
 interface StoredPrefs {
   earnedBadges: string[];
   unlockedGadgets: string[];
@@ -62,11 +65,20 @@ interface ProfileSlice {
   clearProfile: () => void;
 }
 
+// In-memory only — resets on page refresh intentionally
+interface AdminSlice {
+  adminUnlocked: boolean;
+  adminModel: string;
+  unlockAdmin: () => void;
+  lockAdmin: () => void;
+  setAdminModel: (model: string) => void;
+}
+
 const _initProfileId = localStorage.getItem('mission_room_profile') as ProfileId | null;
 const _initPrefs = _initProfileId ? loadPrefs(_initProfileId) : {};
 
 export const useRootStore = create<
-  AuthSlice & MissionUISlice & ToolbeltSlice & GamificationSlice & ProfileSlice
+  AuthSlice & MissionUISlice & ToolbeltSlice & GamificationSlice & ProfileSlice & AdminSlice
 >((set, get) => ({
   user: null,
   authReady: false,
@@ -127,5 +139,14 @@ export const useRootStore = create<
   clearProfile: () => {
     localStorage.removeItem('mission_room_profile');
     set({ profileId: null });
+  },
+
+  adminUnlocked: false,
+  adminModel: localStorage.getItem(ADMIN_MODEL_KEY) ?? DEFAULT_ADMIN_MODEL,
+  unlockAdmin: () => set({ adminUnlocked: true }),
+  lockAdmin:   () => set({ adminUnlocked: false }),
+  setAdminModel: (model) => {
+    localStorage.setItem(ADMIN_MODEL_KEY, model);
+    set({ adminModel: model });
   },
 }));

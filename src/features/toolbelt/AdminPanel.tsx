@@ -1,0 +1,69 @@
+import { useState } from 'react';
+import { useRootStore } from '@/stores/rootStore';
+import PinGate from './PinGate';
+import AdminChat from './AdminChat';
+import ModelPicker from './ModelPicker';
+
+type AdminTab = 'chat' | 'settings';
+
+export default function AdminPanel() {
+  const adminUnlocked = useRootStore((s) => s.adminUnlocked);
+  const unlockAdmin   = useRootStore((s) => s.unlockAdmin);
+  const lockAdmin     = useRootStore((s) => s.lockAdmin);
+  const [tab, setTab] = useState<AdminTab>('chat');
+
+  if (!adminUnlocked) {
+    return <PinGate onUnlock={unlockAdmin} />;
+  }
+
+  return (
+    <div className="flex flex-col h-[70vh] min-h-0">
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-2">
+          {(['chat', 'settings'] as AdminTab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-xl px-4 py-1.5 text-sm font-semibold capitalize transition-colors ${
+                tab === t
+                  ? 'bg-accent text-bg'
+                  : 'bg-bg-2 text-text-2 hover:text-text'
+              }`}
+              style={{ minHeight: 'unset', minWidth: 'unset' }}
+            >
+              {t === 'chat' ? 'Direct Chat' : 'Settings'}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={lockAdmin}
+          className="text-xs text-text-3 hover:text-red transition-colors"
+          style={{ minHeight: 'unset', minWidth: 'unset' }}
+        >
+          Lock
+        </button>
+      </div>
+
+      {/* Content */}
+      {tab === 'chat' && (
+        <div className="flex-1 min-h-0">
+          <AdminChat />
+        </div>
+      )}
+
+      {tab === 'settings' && (
+        <div className="space-y-4">
+          <section className="rounded-2xl bg-bg-2 p-4 border border-border">
+            <h3 className="text-sm font-semibold text-text-2 mb-3">
+              Child AI Brain
+            </h3>
+            <ModelPicker />
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
