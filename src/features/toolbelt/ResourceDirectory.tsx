@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { resourceDirectory } from '@/adapters';
 import { useRootStore } from '@/stores/rootStore';
 import { detectSource } from '@/lib/sourceDetector';
+import { extractResource, type ExtractionProgress } from '@/lib/resourceExtractor';
 import { SUBJECTS, SUBJECT_LABELS, SCHOOL_TYPE_LABELS } from '@/types';
 import type { ResourceEntry, SchoolType, Subject } from '@/types';
 
@@ -35,6 +36,7 @@ export default function ResourceDirectory() {
   const [saving, setSaving] = useState(false);
   const [filterYear, setFilterYear] = useState<number | 'all'>('all');
   const [error, setError] = useState('');
+  const [extracting, setExtracting] = useState<Record<string, ExtractionProgress>>({});
 
   useEffect(() => {
     return resourceDirectory.subscribeResources(setResources);
@@ -74,6 +76,32 @@ export default function ResourceDirectory() {
 
   async function handleDelete(resourceId: string) {
     await resourceDirectory.deleteResource(resourceId);
+  }
+
+  async function handleExtract(resource: ResourceEntry) {
+    setExtracting((prev) => ({ ...prev, [resource.resourceId]: { phase: 'probing' } }));
+    try {
+      await extractResource(resource, (p) =>
+        setExtracting((prev) => ({ ...prev, [resource.resourceId]: p })),
+      );
+    } catch {
+      // error stored to Firebase by extractResource; clear local progress state
+    } finally {
+      setExtracting((prev) => {
+        const next = { ...prev };
+        delete next[resource.resourceId];
+        return next;
+      });
+    }
+  }
+
+  function progressLabel(p: ExtractionProgress): string {
+    if (p.phase === 'probing')        return 'Probing page count…';
+    if (p.phase === 'generating_toc') return 'Generating table of contents…';
+    if (p.phase === 'saving')         return 'Saving…';
+    const done  = p.pagesProcessed ?? 0;
+    const total = p.pagesFound ?? '?';
+    return `Extracting page ${done} / ${total}…`;
   }
 
   const displayed = filterYear === 'all'
@@ -251,13 +279,19 @@ export default function ResourceDirectory() {
                     {r.description && (
                       <p className="text-xs text-text-2 mt-1">{r.description}</p>
                     )}
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span className={`text-xs ${STATUS_COLORS[r.status]}`}>
-                        {r.status === 'pending' ? '⏳ Pending extraction'
-                          : r.status === 'extracting' ? '⚡ Extracting…'
-                          : r.status === 'ready' ? `✓ Ready${r.pageCount ? ` · ${r.pageCount} pages` : ''}`
-                          : `✗ ${r.errorMessage ?? 'Error'}`}
-                      </span>
+                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                      {extracting[r.resourceId] ? (
+                        <span className="text-xs text-accent">
+                          ⚡ {progressLabel(extracting[r.resourceId])}
+                        </span>
+                      ) : (
+                        <span className={`text-xs ${STATUS_COLORS[r.status]}`}>
+                          {r.status === 'pending' ? '⏳ Pending extraction'
+                            : r.status === 'extracting' ? '⚡ Extracting…'
+                            : r.status === 'ready' ? `✓ Ready${r.pageCount ? ` · ${r.pageCount} pages` : ''}`
+                            : `✗ ${r.errorMessage ?? 'Error'}`}
+                        </span>
+                      )}
                       <a
                         href={r.url}
                         target="_blank"
@@ -267,7 +301,38 @@ export default function ResourceDirectory() {
                       >
                         Open ↗
                       </a>
+                      {(r.status === 'pending' || r.status === 'error') && !extracting[r.resourceId] && r.sourceType !== 'website' && (
+                        <button
+                          onClick={() => handleExtract(r)}
+                          className="text-xs text-accent border border-accent/40 rounded-lg px-2 py-0.5 hover:bg-accent/10 transition-colors"
+                          style={{ minHeight: 'unset', minWidth: 'unset' }}
+                        >
+                          Extract
+                        </button>
+                      )}
                     </div>
+                    {r.status === 'ready' && r.extractedContent?.toc && r.extractedContent.toc.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-text-3 cursor-pointer hover:text-text-2">
+                          Table of contents ({r.extractedContent.toc.length} entries)
+                        </summary>
+                        <ol className="mt-1 space-y-0.5 pl-3">
+                          {r.extractedContent.toc.slice(0, 15).map((entry, i) => (
+                            <li
+                              key={i}
+                              className="text-xs text-text-2"
+                              style={{ paddingLeft: `${(entry.level - 1) * 12}px` }}
+                            >
+                              <span className="text-text-3">p.{entry.pageStart}</span>{' '}
+                              {entry.title}
+                            </li>
+                          ))}
+                          {r.extractedContent.toc.length > 15 && (
+                            <li className="text-xs text-text-3">…and {r.extractedContent.toc.length - 15} more</li>
+                          )}
+                        </ol>
+                      </details>
+                    )}
                   </div>
 
                   <button

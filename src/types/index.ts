@@ -216,6 +216,10 @@ export interface ResourceEntry {
   addedBy: string;
   addedAt: number;
   extractedAt?: number;
+  extractedContent?: {
+    fullText: string;
+    toc: Array<{ title: string; level: number; pageStart: number }>;
+  };
 }
 
 export interface AnalyticsSession {
