@@ -15,8 +15,14 @@
 
 import { geminiAdapter }                                   from './ai/gemini-adapter';
 import { firebaseMissionAdapter, firebaseChatAdapter }    from './storage/firebase-rtdb-adapter';
+import { firebaseMethodsAdapter }                          from './storage/firebase-methods-adapter';
+import { firebaseLessonsAdapter }                          from './storage/firebase-lessons-adapter';
+import { firebaseAnalyticsAdapter }                        from './analytics/firebase-analytics-adapter';
 
 // ── Active adapters ────────────────────────────────────────────────────────
-export const aiAdapter      = geminiAdapter;            // AIPort
-export const missionStorage = firebaseMissionAdapter;   // MissionStoragePort
-export const chatStorage    = firebaseChatAdapter;      // ChatStoragePort
+export const aiAdapter        = geminiAdapter;                // AIPort
+export const missionStorage   = firebaseMissionAdapter;       // MissionStoragePort
+export const chatStorage      = firebaseChatAdapter;          // ChatStoragePort
+export const methodRegistry   = firebaseMethodsAdapter;       // MethodRegistryPort
+export const lessonStorage    = firebaseLessonsAdapter;       // LessonStoragePort
+export const analyticsAdapter = firebaseAnalyticsAdapter;     // AnalyticsPort

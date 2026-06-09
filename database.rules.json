@@ -38,6 +38,30 @@
           ".read": "auth != null",
           ".write": "auth != null"
         }
+      },
+      "teachingMethods": {
+        ".read": "auth != null",
+        "$methodId": {
+          ".write": "auth != null"
+        }
+      },
+      "lessons": {
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid"
+        }
+      },
+      "analytics": {
+        "sessions": {
+          "$uid": {
+            ".read": "auth != null && auth.uid == $uid",
+            ".write": "auth != null && auth.uid == $uid"
+          }
+        },
+        "effectiveness": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
       }
     }
   }
