@@ -3,25 +3,34 @@
 
 ; Mission HQ Local Gemini Companion launcher.
 ; Double-click this file from the repo root, or create a shortcut to it.
-; It opens a PowerShell window, runs npm run companion:gemini, and keeps logs visible.
+; It opens PowerShell 7, runs npm run companion:gemini, and keeps logs visible.
 
 repoRoot := RegExReplace(A_ScriptDir, "\\scripts\\windows$", "")
 companionTitle := "Mission HQ Local Gemini Companion"
 
-psCommand := "Set-Location -LiteralPath '" . repoRoot . "'; "
-  . "Write-Host 'Starting Mission HQ Local Gemini Companion...' -ForegroundColor Cyan; "
-  . "Write-Host 'Repo: " . repoRoot . "'; "
-  . "npm run companion:gemini; "
-  . "Write-Host ''; "
-  . "Write-Host 'Companion stopped. Press Enter to close.' -ForegroundColor Yellow; "
-  . "Read-Host"
+; Use pwsh (PowerShell 7) per ARH conventions. Fall back to powershell.exe if unavailable.
+pwshPath := "pwsh.exe"
+if !FileExist(pwshPath) {
+  pwshPath := "powershell.exe"
+}
 
-Run('powershell.exe -NoExit -ExecutionPolicy Bypass -Command "' . psCommand . '"', repoRoot)
+; Build the command using a here-string so single quotes inside repoRoot cannot break quoting.
+; Pass the repo root and command as separate arguments to avoid shell escaping issues.
+psBlock := "`n"
+  . "Set-Location -LiteralPath `""" . repoRoot . "`""`n"
+  . "Write-Host 'Starting Mission HQ Local Gemini Companion...' -ForegroundColor Cyan`n"
+  . "Write-Host `"Repo: " . repoRoot . "`"`n"
+  . "npm run companion:gemini`n"
+  . "Write-Host ''`n"
+  . "Write-Host 'Companion stopped. Press Enter to close.' -ForegroundColor Yellow`n"
+  . "Read-Host`n"
+
+Run('"' . pwshPath . '" -NoExit -ExecutionPolicy Bypass -Command "' . psBlock . '"', repoRoot)
 
 TraySetIcon("shell32.dll", 220)
 A_TrayMenu.Delete()
 A_TrayMenu.Add("Open Mission HQ repo", (*) => Run('explorer.exe "' . repoRoot . '"'))
-A_TrayMenu.Add("Start Companion", (*) => Run('powershell.exe -NoExit -ExecutionPolicy Bypass -Command "' . psCommand . '"', repoRoot))
+A_TrayMenu.Add("Start Companion", (*) => Run('"' . pwshPath . '" -NoExit -ExecutionPolicy Bypass -Command "' . psBlock . '"', repoRoot))
 A_TrayMenu.Add()
 A_TrayMenu.Add("Exit Launcher", (*) => ExitApp())
 

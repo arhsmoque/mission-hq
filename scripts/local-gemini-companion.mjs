@@ -5,26 +5,23 @@
  * Watches Firebase RTDB jobs under mission_hq/aiJobs/{uid}/{jobId}, runs the
  * official Gemini CLI locally, then writes the result back to the same job.
  *
- * Setup:
+ * Setup (client mode — default):
  *   npm install
  *   npm install -g @google/gemini-cli
  *   gemini   # choose Sign in with Google once
  *   npm run companion:gemini
+ *
+ * Setup (admin mode — hardened):
+ *   1. Generate a service account key in Firebase Console → Project Settings → Service Accounts
+ *   2. Download the JSON key file
+ *   3. Set GOOGLE_APPLICATION_CREDENTIALS=/path/to/serviceAccountKey.json
+ *   4. npm run companion:gemini
+ *
+ * Admin mode bypasses Firebase Security Rules entirely, so the companion can
+ * read/write jobs across all users while the web app remains restricted to
+ * auth.uid == $uid.
  */
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, connectAuthEmulator } from 'firebase/auth';
-import {
-  getDatabase,
-  ref,
-  get,
-  onChildAdded,
-  runTransaction,
-  update,
-  set,
-  onDisconnect,
-  connectDatabaseEmulator,
-} from 'firebase/database';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -48,17 +45,72 @@ const firebaseConfig = {
   appId: process.env.VITE_FIREBASE_APP_ID ?? process.env.FIREBASE_APP_ID ?? '1:328228907150:web:fb4d2780b40bb8403ec1df',
 };
 
-const app = initializeApp(firebaseConfig, 'mission-hq-local-companion');
-const auth = getAuth(app);
-const db = getDatabase(app);
+/** @type {import('firebase/database').Database | import('firebase-admin/database').Database} */
+let db;
+/** @type {import('firebase/database').DatabaseReference | import('firebase-admin/database').DatabaseReference} */
+let _statusRef;
+let useAdmin = false;
 
-if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
-  connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`, { disableWarnings: true });
+// Lazy-load wrappers so we can use the same calls regardless of SDK.
+let _ref, _get, _onChildAdded, _runTransaction, _update, _set, _onDisconnect;
+
+async function initDatabase() {
+  const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+  if (serviceAccountPath) {
+    // Admin mode — bypasses Firebase Security Rules
+    const { initializeApp, cert } = await import('firebase-admin/app');
+    const { getDatabase, ref, get, onChildAdded, runTransaction, update, set, onDisconnect } = await import('firebase-admin/database');
+
+    const app = initializeApp({
+      credential: cert(serviceAccountPath),
+      databaseURL: firebaseConfig.databaseURL,
+    });
+
+    db = getDatabase(app);
+    useAdmin = true;
+    _ref = ref;
+    _get = get;
+    _onChildAdded = onChildAdded;
+    _runTransaction = runTransaction;
+    _update = update;
+    _set = set;
+    _onDisconnect = onDisconnect;
+    return;
+  }
+
+  // Client mode — anonymous auth, subject to Firebase Security Rules
+  const { initializeApp } = await import('firebase/app');
+  const { getAuth, signInAnonymously, connectAuthEmulator } = await import('firebase/auth');
+  const { getDatabase, ref, get, onChildAdded, runTransaction, update, set, onDisconnect, connectDatabaseEmulator } = await import('firebase/database');
+
+  const app = initializeApp(firebaseConfig, 'mission-hq-local-companion');
+  const auth = getAuth(app);
+  db = getDatabase(app);
+
+  if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`, { disableWarnings: true });
+  }
+
+  if (process.env.FIREBASE_DATABASE_EMULATOR_HOST) {
+    const [host, port = '9000'] = process.env.FIREBASE_DATABASE_EMULATOR_HOST.split(':');
+    connectDatabaseEmulator(db, host, Number(port));
+  }
+
+  await signInAnonymously(auth);
+  log('Signed into Firebase anonymously', auth.currentUser?.uid ?? 'unknown');
+
+  _ref = ref;
+  _get = get;
+  _onChildAdded = onChildAdded;
+  _runTransaction = runTransaction;
+  _update = update;
+  _set = set;
+  _onDisconnect = onDisconnect;
 }
 
-if (process.env.FIREBASE_DATABASE_EMULATOR_HOST) {
-  const [host, port = '9000'] = process.env.FIREBASE_DATABASE_EMULATOR_HOST.split(':');
-  connectDatabaseEmulator(db, host, Number(port));
+function dbRef(path) {
+  return _ref(db, path);
 }
 
 const templateCache = new Map();
@@ -73,12 +125,13 @@ function log(message, extra = '') {
 }
 
 function statusRef() {
-  return ref(db, `${COMPANIONS_ROOT}/${COMPANION_ID}`);
+  if (!_statusRef) _statusRef = dbRef(`${COMPANIONS_ROOT}/${COMPANION_ID}`);
+  return _statusRef;
 }
 
 async function writeCompanionStatus(state, patch = {}) {
   const now = Date.now();
-  await update(statusRef(), {
+  await _update(statusRef(), {
     companionId: COMPANION_ID,
     state,
     pid: process.pid,
@@ -97,7 +150,7 @@ async function writeCompanionStatus(state, patch = {}) {
 }
 
 async function startHeartbeat() {
-  await set(statusRef(), {
+  await _set(statusRef(), {
     companionId: COMPANION_ID,
     state: 'starting',
     pid: process.pid,
@@ -114,7 +167,7 @@ async function startHeartbeat() {
     updatedAt: Date.now(),
   });
 
-  await onDisconnect(statusRef()).update({
+  await _onDisconnect(statusRef()).update({
     state: 'offline',
     activeJob: null,
     offlineAt: Date.now(),
@@ -214,8 +267,8 @@ function extractTextFromCliOutput(rawOutput) {
 }
 
 async function claimJob(uid, jobId, job) {
-  const jobRef = ref(db, `${JOBS_ROOT}/${uid}/${jobId}`);
-  const tx = await runTransaction(jobRef, (current) => {
+  const jobRef = dbRef(`${JOBS_ROOT}/${uid}/${jobId}`);
+  const tx = await _runTransaction(jobRef, (current) => {
     if (!current || current.status !== 'pending') return;
     return {
       ...current,
@@ -236,14 +289,14 @@ async function processJob(uid, jobId, job) {
   activeJob = { uid, jobId, kind: claimed.input?.kind ?? 'unknown', startedAt: Date.now() };
   await writeCompanionStatus('running', { activeJob });
   log(`Running job ${uid}/${jobId}`, `kind=${claimed.input?.kind ?? 'unknown'}`);
-  const jobRef = ref(db, `${JOBS_ROOT}/${uid}/${jobId}`);
+  const jobRef = dbRef(`${JOBS_ROOT}/${uid}/${jobId}`);
 
   try {
     const prompt = await buildPrompt(claimed.input ?? {});
     const { stdout, stderr } = await runGemini(prompt);
     const { text, json } = extractTextFromCliOutput(stdout);
 
-    await update(jobRef, {
+    await _update(jobRef, {
       status: 'done',
       result: {
         text,
@@ -259,7 +312,7 @@ async function processJob(uid, jobId, job) {
     log(`Completed job ${uid}/${jobId}`);
   } catch (err) {
     failedJobs += 1;
-    await update(jobRef, {
+    await _update(jobRef, {
       status: 'error',
       error: err instanceof Error ? err.message : String(err),
       completedAt: Date.now(),
@@ -273,7 +326,7 @@ async function processJob(uid, jobId, job) {
 }
 
 async function scanExistingJobs() {
-  const rootSnap = await get(ref(db, JOBS_ROOT));
+  const rootSnap = await _get(dbRef(JOBS_ROOT));
   if (!rootSnap.exists()) return;
 
   const allUsers = rootSnap.val();
@@ -288,13 +341,13 @@ async function scanExistingJobs() {
 }
 
 function watchJobs() {
-  const rootRef = ref(db, JOBS_ROOT);
+  const rootRef = dbRef(JOBS_ROOT);
 
-  onChildAdded(rootRef, (userSnap) => {
+  _onChildAdded(rootRef, (userSnap) => {
     const uid = userSnap.key;
     if (!uid) return;
 
-    onChildAdded(ref(db, `${JOBS_ROOT}/${uid}`), (jobSnap) => {
+    _onChildAdded(dbRef(`${JOBS_ROOT}/${uid}`), (jobSnap) => {
       const jobId = jobSnap.key;
       const job = jobSnap.val();
       if (!jobId || job?.status !== 'pending') return;
@@ -321,8 +374,8 @@ async function main() {
   process.on('SIGINT', () => { void shutdown('SIGINT'); });
   process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
 
-  await signInAnonymously(auth);
-  log('Signed into Firebase anonymously', auth.currentUser?.uid ?? 'unknown');
+  await initDatabase();
+  log(useAdmin ? 'Running in ADMIN mode (bypasses Firebase Rules)' : 'Running in CLIENT mode (anonymous auth)');
 
   await startHeartbeat();
   await scanExistingJobs();

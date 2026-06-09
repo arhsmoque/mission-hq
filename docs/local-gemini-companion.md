@@ -129,6 +129,38 @@ gemini -p <prompt> --output-format json
 
 Keep the companion running only on machines you control.
 
+## Security modes
+
+The companion supports two authentication modes.
+
+### Client mode (default)
+
+The companion signs into Firebase anonymously, just like the web app. It is subject to Firebase Security Rules. This is convenient for local development but means the companion cannot access jobs across users if rules are tightened per-UID.
+
+### Admin mode (hardened)
+
+Set `GOOGLE_APPLICATION_CREDENTIALS` to a Firebase service account key JSON file:
+
+```powershell
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\secrets\mission-hq-service-account.json"
+npm run companion:gemini
+```
+
+Admin mode bypasses Firebase Security Rules entirely, so the companion can read/write all jobs while the web app remains restricted to `auth.uid == $uid`.
+
+To generate a service account key:
+
+1. Firebase Console → Project Settings → Service Accounts
+2. Click **Generate new private key**
+3. Save the JSON file securely
+4. Set `GOOGLE_APPLICATION_CREDENTIALS` to its absolute path
+
+Never commit service account keys to Git.
+
 ## Current security posture
 
-This MVP uses authenticated Firebase access for `mission_hq/aiJobs` and `mission_hq/aiCompanions` so that the phone session and the anonymous desktop companion can communicate. This is convenient but broad. The recommended next hardening step is a dedicated companion identity, custom token, or small trusted Worker that narrows write authority.
+- `aiJobs` rules restrict users to their own `$uid` subtree.
+- `aiCompanions` rules allow any authenticated user to read and any authenticated user to write.
+- The companion in **client mode** uses anonymous auth and is bound by these rules.
+- The companion in **admin mode** uses a service account and bypasses rules.
+- Recommended production setup: run the companion in **admin mode** on a trusted desktop.

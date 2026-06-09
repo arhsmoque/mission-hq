@@ -24,7 +24,7 @@ function stateClass(row: LocalCompanionStatus): string {
   const state = stateLabel(row);
   if (state === 'idle') return 'bg-green/10 text-green border-green/30';
   if (state === 'running') return 'bg-accent/10 text-accent border-accent/30';
-  if (state === 'starting') return 'bg-yellow/10 text-yellow border-yellow/30';
+  if (state === 'starting') return 'bg-accent/10 text-accent border-accent/30';
   if (state === 'error') return 'bg-red/10 text-red border-red/30';
   return 'bg-bg-2 text-text-3 border-border';
 }

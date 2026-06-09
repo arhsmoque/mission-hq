@@ -40,7 +40,7 @@ export function subscribeLocalCompanions(
     }
 
     const rows = Object.entries(snap.val() as Record<string, LocalCompanionStatus>)
-      .map(([companionId, value]) => ({ companionId, ...value }))
+      .map(([companionId, value]) => ({ ...value, companionId }))
       .sort((a, b) => (b.heartbeatAt ?? 0) - (a.heartbeatAt ?? 0));
 
     onChange(rows);

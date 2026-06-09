@@ -22,9 +22,9 @@
         }
       },
       "aiJobs": {
-        ".read": "auth != null",
-        ".write": "auth != null",
         "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid",
           "$jobId": {
             ".validate": "newData.hasChildren(['status', 'input', 'updatedAt'])"
           }
@@ -32,8 +32,8 @@
       },
       "aiCompanions": {
         ".read": "auth != null",
-        ".write": "auth != null",
         "$companionId": {
+          ".write": "auth != null",
           ".validate": "newData.hasChildren(['companionId', 'state', 'updatedAt'])"
         }
       },
