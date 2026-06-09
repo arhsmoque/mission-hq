@@ -33,6 +33,16 @@ npm install
 npm run companion:gemini
 ```
 
+Windows users can also double-click:
+
+```text
+scripts/windows/start-local-gemini-companion.ahk
+```
+
+The AHKv2 launcher opens PowerShell in the repo root, runs `npm run companion:gemini`, and leaves logs visible.
+
+## Use from Mission HQ
+
 In the app, open:
 
 ```text
@@ -46,6 +56,22 @@ mission_hq/aiJobs/{uid}/{jobId}
 ```
 
 The desktop companion claims pending jobs, runs Gemini CLI, and writes the result back to the same job.
+
+## Operator status
+
+The companion writes heartbeat records under:
+
+```text
+mission_hq/aiCompanions/{companionId}
+```
+
+View status in:
+
+```text
+Toolbelt → Admin → Settings → Local Gemini Companion
+```
+
+The panel shows whether the desktop companion is `starting`, `idle`, `running`, `stale`, `offline`, or `error`, plus heartbeat age, active job, completed count, failed count, and process id.
 
 ## Prompt templates
 
@@ -102,3 +128,7 @@ gemini -p <prompt> --output-format json
 ```
 
 Keep the companion running only on machines you control.
+
+## Current security posture
+
+This MVP uses authenticated Firebase access for `mission_hq/aiJobs` and `mission_hq/aiCompanions` so that the phone session and the anonymous desktop companion can communicate. This is convenient but broad. The recommended next hardening step is a dedicated companion identity, custom token, or small trusted Worker that narrows write authority.
