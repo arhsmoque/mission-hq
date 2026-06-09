@@ -8,9 +8,9 @@ const Dashboard = lazy(() => import('./routes/Dashboard'))
 const NewMission = lazy(() => import('./routes/NewMission'))
 const MissionView = lazy(() => import('./routes/MissionView'))
 const ChineseLab = lazy(() => import('./routes/ChineseLab'))
-const Toolbelt = lazy(() => import('./routes/Toolbelt'));
-const LessonBuilder = lazy(() => import('./routes/LessonBuilder'));
-const LessonPlayer = lazy(() => import('./routes/LessonPlayer'));
+const Toolbelt = lazy(() => import('./routes/Toolbelt'))
+const LessonBuilder = lazy(() => import('./routes/LessonBuilder'))
+const LessonPlayer = lazy(() => import('./routes/LessonPlayer'))
 const ParentDashboard = lazy(() => import('./routes/ParentDashboard'))
 
 function AppShell({ children }: { children: React.ReactNode }) {
@@ -44,7 +44,7 @@ export default function App() {
           <Route path="/toolbelt" element={<PrivateRoute><Toolbelt /></PrivateRoute>} />
           <Route path="/lesson-builder" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />
           <Route path="/lesson-builder/:lessonId" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />
-          <Route path="/lesson/:lessonId" element={<PrivateRoute><LessonPlayer /></PrivateRoute>} />`n          <Route path="/lesson-builder" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />`n          <Route path="/lesson-builder/:lessonId" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />`n          <Route path="/lesson/:lessonId" element={<PrivateRoute><LessonPlayer /></PrivateRoute>} />
+          <Route path="/lesson/:lessonId" element={<PrivateRoute><LessonPlayer /></PrivateRoute>} />
           <Route path="/parent" element={<ParentDashboard />} />
         </Routes>
       </AppShell>
