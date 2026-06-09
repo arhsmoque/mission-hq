@@ -7,6 +7,9 @@
  *
  * Profiles (Asma / Aflah / Haidar) live in src/features/profile/profiles.ts.
  * Add/remove profiles with:  node scripts/profiles.mjs
+ *
+ * Teaching methodology types (TeachingMethod, Lesson, AnalyticsSession) support
+ * the expandable method registry and PDF lesson pipeline introduced in Stage 1.
  */
 
 export interface AuthUser {
@@ -68,4 +71,127 @@ export interface VocabEntry {
   savedAt: number;
   reviewCount: number;
   nextReview: number;
+}
+
+// ── Teaching Method Registry ───────────────────────────────────────────────
+
+export type MethodFramework = 'cognitive' | 'inquiry' | 'constructivist' | 'behavioural';
+
+export interface MethodPhase {
+  id: string;
+  label: string;
+  description: string;
+  verbExamples: string[];
+  activityTypes: string[];
+  promptGuidance: string;
+}
+
+export interface EvaluationCriteria {
+  id: string;
+  check: string;
+  required: boolean;
+}
+
+export interface TeachingMethod {
+  methodId: string;
+  name: string;
+  description: string;
+  framework: MethodFramework;
+  ageRange: { min: number; max: number };
+  applicableSubjects: string[];
+  phases: MethodPhase[];
+  systemPrompt: string;
+  outputSchema: Record<string, unknown>;
+  evaluationRubric: EvaluationCriteria[];
+  isActive: boolean;
+  version: string;
+  createdAt: number;
+}
+
+// ── Lesson (PDF-sourced) ───────────────────────────────────────────────────
+
+export interface LessonTocEntry {
+  sectionId: string;
+  title: string;
+  level: number;
+  pageStart: number;
+}
+
+export type LessonActivityType =
+  | 'recall'
+  | 'guided_practice'
+  | 'independent_practice'
+  | 'reflection'
+  | 'creative';
+
+export interface LessonActivity {
+  type: LessonActivityType;
+  instruction: string;
+  hint: string;
+  successCriteria: string;
+}
+
+export type LessonSectionStatus = 'raw' | 'generated' | 'needs_review' | 'approved';
+
+export interface LessonSection {
+  sectionId: string;
+  title: string;
+  pageStart: number;
+  pageEnd: number;
+  markdown: string;
+  methodId: string;
+  bloomLevel?: number;
+  learningObjective?: string;
+  prerequisiteKnowledge?: string;
+  activities?: LessonActivity[];
+  commonMisconceptions?: string[];
+  status: LessonSectionStatus;
+  generatedAt?: number;
+  reviewedAt?: number;
+}
+
+export interface Lesson {
+  lessonId: string;
+  profileId: string;
+  title: string;
+  subject: string;
+  pdfStoragePath: string;
+  pageCount: number;
+  toc: LessonTocEntry[];
+  sections: LessonSection[];
+  defaultMethodId: string;
+  status: 'processing' | 'ready' | 'archived';
+  parentReviewed: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ── Analytics ──────────────────────────────────────────────────────────────
+
+export interface AnalyticsSession {
+  sessionId: string;
+  uid: string;
+  profileId: string;
+  lessonId: string;
+  sectionId: string;
+  methodId: string;
+  subject: string;
+  startedAt: number;
+  completedAt?: number;
+  timeToCompleteMs?: number;
+  chatTurnsUsed: number;
+  hintsRequested: number;
+  completedWithoutHelp: boolean;
+  successIndicator: boolean;
+}
+
+export interface MethodEffectiveness {
+  methodId: string;
+  subject: string;
+  totalSessions: number;
+  completionRate: number;
+  avgChatTurns: number;
+  avgTimeToCompleteMs: number;
+  unaidedCompletionRate: number;
+  lastUpdated: number;
 }
