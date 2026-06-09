@@ -21,6 +21,8 @@ import {
   onChildAdded,
   runTransaction,
   update,
+  set,
+  onDisconnect,
   connectDatabaseEmulator,
 } from 'firebase/database';
 import { spawn } from 'node:child_process';
@@ -30,9 +32,11 @@ import process from 'node:process';
 
 const COMPANION_ID = process.env.MHQ_COMPANION_ID ?? `desktop-${process.env.COMPUTERNAME ?? process.env.HOSTNAME ?? 'local'}`;
 const JOBS_ROOT = process.env.MHQ_AI_JOBS_ROOT ?? 'mission_hq/aiJobs';
+const COMPANIONS_ROOT = process.env.MHQ_COMPANIONS_ROOT ?? 'mission_hq/aiCompanions';
 const MAX_PROMPT_CHARS = Number(process.env.MHQ_MAX_PROMPT_CHARS ?? 120_000);
 const GEMINI_BIN = process.env.GEMINI_BIN ?? 'gemini';
 const DEFAULT_OUTPUT_FORMAT = process.env.GEMINI_OUTPUT_FORMAT ?? 'json';
+const HEARTBEAT_MS = Number(process.env.MHQ_HEARTBEAT_MS ?? 15_000);
 
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY ?? process.env.FIREBASE_API_KEY ?? 'AIzaSyB8j-jHo2N341ieW4AVCdPL3ipn4Ss8sYQ',
@@ -58,10 +62,70 @@ if (process.env.FIREBASE_DATABASE_EMULATOR_HOST) {
 }
 
 const templateCache = new Map();
+let activeJob = null;
+let completedJobs = 0;
+let failedJobs = 0;
+let heartbeatTimer = null;
 
 function log(message, extra = '') {
   const stamp = new Date().toISOString();
   console.log(`[${stamp}] ${message}${extra ? ` ${extra}` : ''}`);
+}
+
+function statusRef() {
+  return ref(db, `${COMPANIONS_ROOT}/${COMPANION_ID}`);
+}
+
+async function writeCompanionStatus(state, patch = {}) {
+  const now = Date.now();
+  await update(statusRef(), {
+    companionId: COMPANION_ID,
+    state,
+    pid: process.pid,
+    nodeVersion: process.version,
+    platform: process.platform,
+    geminiBin: GEMINI_BIN,
+    outputFormat: DEFAULT_OUTPUT_FORMAT,
+    jobsRoot: JOBS_ROOT,
+    activeJob,
+    completedJobs,
+    failedJobs,
+    heartbeatAt: now,
+    updatedAt: now,
+    ...patch,
+  });
+}
+
+async function startHeartbeat() {
+  await set(statusRef(), {
+    companionId: COMPANION_ID,
+    state: 'starting',
+    pid: process.pid,
+    nodeVersion: process.version,
+    platform: process.platform,
+    geminiBin: GEMINI_BIN,
+    outputFormat: DEFAULT_OUTPUT_FORMAT,
+    jobsRoot: JOBS_ROOT,
+    activeJob: null,
+    completedJobs: 0,
+    failedJobs: 0,
+    startedAt: Date.now(),
+    heartbeatAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  await onDisconnect(statusRef()).update({
+    state: 'offline',
+    activeJob: null,
+    offlineAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+
+  heartbeatTimer = setInterval(() => {
+    void writeCompanionStatus(activeJob ? 'running' : 'idle').catch((err) => {
+      log('Heartbeat update failed', err instanceof Error ? err.message : String(err));
+    });
+  }, HEARTBEAT_MS);
 }
 
 function roleLabel(role) {
@@ -169,6 +233,8 @@ async function processJob(uid, jobId, job) {
   const claimed = await claimJob(uid, jobId, job);
   if (!claimed) return;
 
+  activeJob = { uid, jobId, kind: claimed.input?.kind ?? 'unknown', startedAt: Date.now() };
+  await writeCompanionStatus('running', { activeJob });
   log(`Running job ${uid}/${jobId}`, `kind=${claimed.input?.kind ?? 'unknown'}`);
   const jobRef = ref(db, `${JOBS_ROOT}/${uid}/${jobId}`);
 
@@ -189,8 +255,10 @@ async function processJob(uid, jobId, job) {
       updatedAt: Date.now(),
     });
 
+    completedJobs += 1;
     log(`Completed job ${uid}/${jobId}`);
   } catch (err) {
+    failedJobs += 1;
     await update(jobRef, {
       status: 'error',
       error: err instanceof Error ? err.message : String(err),
@@ -198,6 +266,9 @@ async function processJob(uid, jobId, job) {
       updatedAt: Date.now(),
     });
     log(`Failed job ${uid}/${jobId}`, err instanceof Error ? err.message : String(err));
+  } finally {
+    activeJob = null;
+    await writeCompanionStatus('idle', { activeJob: null });
   }
 }
 
@@ -232,20 +303,38 @@ function watchJobs() {
   });
 }
 
+async function shutdown(signal) {
+  log(`Received ${signal}; marking companion offline`);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  try {
+    await writeCompanionStatus('offline', { activeJob: null, offlineAt: Date.now() });
+  } finally {
+    process.exit(0);
+  }
+}
+
 async function main() {
   log('Starting Mission HQ local Gemini companion', `id=${COMPANION_ID}`);
   log('Gemini CLI binary', GEMINI_BIN);
   log('Firebase RTDB root', JOBS_ROOT);
 
+  process.on('SIGINT', () => { void shutdown('SIGINT'); });
+  process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+
   await signInAnonymously(auth);
   log('Signed into Firebase anonymously', auth.currentUser?.uid ?? 'unknown');
 
+  await startHeartbeat();
   await scanExistingJobs();
   watchJobs();
+  await writeCompanionStatus('idle');
   log('Watching for pending jobs...');
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error(err);
+  try {
+    await writeCompanionStatus('error', { error: err instanceof Error ? err.message : String(err) });
+  } catch {}
   process.exit(1);
 });
