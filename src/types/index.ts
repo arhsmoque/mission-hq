@@ -131,6 +131,13 @@ export interface LessonActivity {
   successCriteria: string;
 }
 
+export interface EvaluationAttempt {
+  attempt: number;
+  pass: boolean;
+  issues: string[];
+  timestamp: number;
+}
+
 export type LessonSectionStatus = 'raw' | 'generated' | 'needs_review' | 'approved';
 
 export interface LessonSection {
@@ -148,6 +155,8 @@ export interface LessonSection {
   status: LessonSectionStatus;
   generatedAt?: number;
   reviewedAt?: number;
+  evaluationLog?: EvaluationAttempt[];
+  parentNotes?: string;
 }
 
 export interface Lesson {

@@ -11,10 +11,28 @@
 import { aiAdapter, lessonStorage } from '@/adapters';
 import { getCachedMethod, selectBestMethod } from './methodRegistry';
 import { buildLessonActivityPrompt, buildEvaluationPrompt } from './prompts';
-import type { ResourceEntry, TeachingMethod, LessonSection, LessonTocEntry, LessonActivity } from '@/types';
+import { z } from 'zod';
+import type { ResourceEntry, TeachingMethod, LessonSection, LessonTocEntry, LessonActivity, EvaluationAttempt } from '@/types';
 
 const GEN_MODEL   = 'gemini-2.5-flash';
 const MAX_RETRIES = 2;
+
+// ── Zod schema for generated section output ──────────────────────────────────
+
+const LessonActivitySchema = z.object({
+  type: z.enum(['recall', 'guided_practice', 'independent_practice', 'reflection', 'creative']),
+  instruction: z.string().min(1, 'instruction is required'),
+  hint: z.string(),
+  successCriteria: z.string().min(1, 'successCriteria is required'),
+});
+
+const LessonSectionOutputSchema = z.object({
+  bloomLevel: z.number().optional(),
+  learningObjective: z.string().optional(),
+  prerequisiteKnowledge: z.string().optional(),
+  activities: z.array(LessonActivitySchema).optional(),
+  commonMisconceptions: z.array(z.string()).optional(),
+});
 
 export interface LessonGenerationProgress {
   phase: 'preparing' | 'generating' | 'done';
@@ -152,6 +170,7 @@ async function generateAndSaveSection(
   let activitiesJson     = '';
   let overallPass        = false;
   let extraConstraints: string | undefined;
+  const evalLog: EvaluationAttempt[] = [];
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -171,8 +190,24 @@ async function generateAndSaveSection(
       const raw = await aiAdapter.chat(genMessages, GEN_MODEL, 0.3);
       activitiesJson = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
 
-      // Validate JSON before sending to evaluator
-      JSON.parse(activitiesJson);
+      // Validate JSON structure
+      let parsedGen: Record<string, unknown>;
+      try {
+        parsedGen = JSON.parse(activitiesJson) as Record<string, unknown>;
+      } catch {
+        extraConstraints = 'Your previous response was not valid JSON. Return ONLY valid JSON.';
+        evalLog.push({ attempt, pass: false, issues: ['Generation JSON parse failed'], timestamp: Date.now() });
+        continue;
+      }
+
+      // Zod schema validation
+      const zodResult = LessonSectionOutputSchema.safeParse(parsedGen);
+      if (!zodResult.success) {
+        const zodIssues = zodResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
+        extraConstraints = `Schema validation failed:\n${zodIssues.join('\n')}\n\nFix these issues and return valid JSON matching the schema exactly.`;
+        evalLog.push({ attempt, pass: false, issues: zodIssues, timestamp: Date.now() });
+        continue;
+      }
 
       // Pass 2: evaluate
       const evalMessages = buildEvaluationPrompt({
@@ -190,14 +225,18 @@ async function generateAndSaveSection(
         overallPass  = Boolean(evalParsed.overallPass);
         issues       = Array.isArray(evalParsed.issues) ? (evalParsed.issues as string[]) : [];
       } catch {
-        overallPass = true; // evaluation JSON parse fail → treat as pass
+        overallPass = false;
+        issues = ['Evaluation response was invalid JSON. Return valid JSON with overallPass and issues fields.'];
       }
+
+      evalLog.push({ attempt, pass: overallPass, issues, timestamp: Date.now() });
 
       if (overallPass) break;
       extraConstraints = issues.join('\n');
 
-    } catch {
-      break; // network or parse error — save what we have
+    } catch (err) {
+      evalLog.push({ attempt, pass: false, issues: [`Unexpected error: ${String(err)}`], timestamp: Date.now() });
+      break; // network or unexpected error — save what we have
     }
   }
 
@@ -207,6 +246,7 @@ async function generateAndSaveSection(
   } catch {
     await lessonStorage.updateSection(uid, lessonId, section.sectionId, {
       status: 'needs_review',
+      evaluationLog: evalLog,
     });
     return;
   }
@@ -219,5 +259,29 @@ async function generateAndSaveSection(
     activities:            parsed.activities              as LessonActivity[] | undefined,
     commonMisconceptions:  parsed.commonMisconceptions    as string[] | undefined,
     generatedAt:           Date.now(),
+    evaluationLog:         evalLog,
   });
+}
+
+// ── Public regenerate API ─────────────────────────────────────────────────────
+
+export async function regenerateSection(
+  uid: string,
+  lessonId: string,
+  section: LessonSection,
+  methodId?: string,
+): Promise<void> {
+  const method = await getCachedMethod(methodId ?? section.methodId);
+  if (!method) throw new Error(`Teaching method "${methodId ?? section.methodId}" not found in registry.`);
+
+  // Reset section to raw so UI shows it is being regenerated
+  await lessonStorage.updateSection(uid, lessonId, section.sectionId, {
+    status: 'raw',
+    generatedAt: undefined,
+    reviewedAt: undefined,
+    evaluationLog: undefined,
+    parentNotes: undefined,
+  });
+
+  await generateAndSaveSection(method, section, uid, lessonId);
 }

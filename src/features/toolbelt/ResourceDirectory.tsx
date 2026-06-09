@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { resourceDirectory } from '@/adapters';
 import { useRootStore } from '@/stores/rootStore';
 import { detectSource } from '@/lib/sourceDetector';
@@ -31,6 +32,7 @@ const EMPTY_FORM = {
 };
 
 export default function ResourceDirectory() {
+  const navigate = useNavigate();
   const user = useRootStore((s) => s.user);
   const [resources, setResources] = useState<ResourceEntry[]>([]);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -148,6 +150,11 @@ export default function ResourceDirectory() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={() => navigate('/lesson-builder')} className="rounded-xl bg-accent px-4 py-2 font-bold text-white shadow-sm active:scale-95 transition-transform text-sm">
+          📚 Manage Lessons
+        </button>
+      </div>
 
       {/* Filter + Add button */}
       <div className="flex gap-2 flex-wrap items-center">

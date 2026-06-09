@@ -122,7 +122,7 @@ export default function Dashboard() {
             + New Mission
           </button>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
               onClick={() => setShowArchive(!showArchive)}
               className="rounded-2xl bg-surface p-4 text-center shadow-sm active:scale-[0.98] border border-border"
