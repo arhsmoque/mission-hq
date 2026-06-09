@@ -8,14 +8,20 @@
 repoRoot := RegExReplace(A_ScriptDir, "\\scripts\\windows$", "")
 companionTitle := "Mission HQ Local Gemini Companion"
 
-; Use pwsh (PowerShell 7) per ARH conventions. Fall back to powershell.exe if unavailable.
+; Try pwsh (PowerShell 7) first. If not available on this machine, fall back to Windows PowerShell.
 pwshPath := "pwsh.exe"
-if !FileExist(pwshPath) {
-  pwshPath := "powershell.exe"
+if (!FileExist(pwshPath)) {
+  ; FileExist does not search PATH, so try a quick shell lookup.
+  try {
+    shell := ComObject("WScript.Shell")
+    shell.Exec("pwsh.exe -Command exit 0")
+  } catch {
+    pwshPath := "powershell.exe"
+  }
 }
 
 ; Build the command using a here-string so single quotes inside repoRoot cannot break quoting.
-; Pass the repo root and command as separate arguments to avoid shell escaping issues.
+; Pass the repo path and command as separate arguments to avoid shell escaping issues.
 psBlock := "`n"
   . "Set-Location -LiteralPath `""" . repoRoot . "`""`n"
   . "Write-Host 'Starting Mission HQ Local Gemini Companion...' -ForegroundColor Cyan`n"

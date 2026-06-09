@@ -20,7 +20,7 @@ jobs:
 
       - name: Check for conflict markers
         run: |
-          if git grep -n '<<<<<<<' -- '*.ts' '*.tsx' '*.js' '*.mjs' '*.json' '*.md'; then
+          if git grep -n '<<<<<<<' -- '*.ts' '*.tsx' '*.js' '*.mjs' '*.json' '*.md' '*.yml' '*.yaml' '*.ahk'; then
             echo "Found merge conflict markers"
             exit 1
           fi
