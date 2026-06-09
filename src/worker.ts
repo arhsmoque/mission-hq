@@ -164,7 +164,7 @@ async function handleProxyImage(request: Request): Promise<Response> {
   try { host = new URL(imageUrl).hostname.toLowerCase(); }
   catch { return json({ error: 'Invalid URL' }, 400); }
 
-  if (!PROXY_ALLOWED.some((d) => host.endsWith(d))) {
+  if (!PROXY_ALLOWED.some((d) => host === d || host.endsWith('.' + d))) {
     return json({ error: 'Domain not allowed' }, 403);
   }
 

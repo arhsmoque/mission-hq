@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-
-const ADMIN_PIN = '240514';
+import { APP_CONFIG } from '@/config';
 
 interface PinGateProps {
   onUnlock: () => void;
@@ -17,7 +16,7 @@ export default function PinGate({ onUnlock }: PinGateProps) {
     setInput(next);
 
     if (next.length === 6) {
-      if (next === ADMIN_PIN) {
+      if (next === APP_CONFIG.admin.pin) {
         onUnlock();
       } else {
         setShaking(true);

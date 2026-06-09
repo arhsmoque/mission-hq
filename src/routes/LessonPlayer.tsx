@@ -83,10 +83,6 @@ export default function LessonPlayer() {
     setHintsUsed((h) => h + 1);
   }, []);
 
-  if (lesson && !lesson.parentReviewed) {
-    return <div className="p-6 max-w-xl mx-auto text-center mt-20 bg-surface rounded-2xl border border-border"><h2 className="text-xl font-black text-red font-display">Wait! 🛑</h2><p className="text-text-2 mt-2">Your parent needs to review this lesson before you can start.</p></div>;
-  }
-
   if (loading)
     return (
       <div className="p-6 max-w-xl mx-auto text-text-3 flex h-screen items-center justify-center">
@@ -97,6 +93,10 @@ export default function LessonPlayer() {
     return (
       <div className="p-6 max-w-xl mx-auto text-red">Lesson not found.</div>
     );
+
+  if (!lesson.parentReviewed) {
+    return <div className="p-6 max-w-xl mx-auto text-center mt-20 bg-surface rounded-2xl border border-border"><h2 className="text-xl font-black text-red font-display">Wait! 🛑</h2><p className="text-text-2 mt-2">Your parent needs to review this lesson before you can start.</p></div>;
+  }
 
   if (approvedSections.length === 0) {
     return (

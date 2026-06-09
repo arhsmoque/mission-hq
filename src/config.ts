@@ -25,4 +25,9 @@ export const APP_CONFIG = {
   app: {
     name: 'Mission Room',
   },
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+  admin: {
+    pin: '240514',
+  },
 } as const;

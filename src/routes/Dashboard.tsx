@@ -33,8 +33,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user?.uid) return;
+    const profileAtLoad = profileId;
     loadGamificationOnce(user.uid).then((data) => {
       if (!data) return;
+      if (useRootStore.getState().profileId !== profileAtLoad) return;
       data.badges.forEach((b) => {
         if (!earnedBadges.includes(b)) addBadge(b);
       });
@@ -42,7 +44,7 @@ export default function Dashboard() {
         if (!unlockedGadgets.includes(g)) unlockGadget(g);
       });
     });
-  }, [user?.uid, addBadge, unlockGadget, earnedBadges, unlockedGadgets]);
+  }, [user?.uid, addBadge, unlockGadget, earnedBadges, unlockedGadgets, profileId]);
 
   if (!profileId) return <ProfilePicker />;
 

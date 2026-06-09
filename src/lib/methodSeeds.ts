@@ -11,8 +11,11 @@
  * admin panel (Stage 4).
  */
 
+import { LESSON_ACTIVITY_TYPES } from '@/types';
 import type { TeachingMethod } from '@/types';
 import { methodRegistry } from '@/adapters';
+
+const SEED_DONE_KEY = 'mhq_methods_seeded';
 
 const BLOOMS_TAXONOMY: Omit<TeachingMethod, 'createdAt'> = {
   methodId: 'blooms_taxonomy',
@@ -106,7 +109,7 @@ Return ONLY a valid JSON object matching the provided schema. No markdown, no ex
           type: 'object',
           required: ['type', 'instruction', 'hint', 'successCriteria'],
           properties: {
-            type: { type: 'string', enum: ['recall', 'guided_practice', 'independent_practice', 'reflection', 'creative'] },
+            type: { type: 'string', enum: [...LESSON_ACTIVITY_TYPES] },
             instruction: { type: 'string' },
             hint: { type: 'string' },
             successCriteria: { type: 'string' },
@@ -133,7 +136,12 @@ export const SEED_METHODS: Array<Omit<TeachingMethod, 'createdAt'>> = [
 ];
 
 export async function seedMethodsIfEmpty(): Promise<void> {
+  if (localStorage.getItem(SEED_DONE_KEY)) return;
   const existing = await methodRegistry.getAllMethods();
-  if (existing.length > 0) return;
+  if (existing.length > 0) {
+    localStorage.setItem(SEED_DONE_KEY, '1');
+    return;
+  }
   await Promise.all(SEED_METHODS.map((m) => methodRegistry.createMethod(m)));
+  localStorage.setItem(SEED_DONE_KEY, '1');
 }

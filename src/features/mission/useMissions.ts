@@ -5,13 +5,13 @@ import { useRootStore } from '@/stores/rootStore';
 import type { Mission } from '@/types';
 
 export function useMissions() {
-  const profileId = useRootStore((s) => s.profileId);
+  const user = useRootStore((s) => s.user);
   return useQuery({
-    queryKey: ['missions', profileId],
+    queryKey: ['missions', user?.uid],
     queryFn: () =>
       new Promise<Mission[]>((resolve) => {
-        if (!profileId) return resolve([]);
-        const unsub = onValue(ref(rtdb, `mission_hq/missions/${profileId}`), (snap) => {
+        if (!user?.uid) return resolve([]);
+        const unsub = onValue(ref(rtdb, `mission_hq/missions/${user.uid}`), (snap) => {
           if (!snap.exists()) return resolve([]);
           const items = Object.entries(snap.val() as Record<string, Omit<Mission, 'missionId'>>)
             .map(([id, data]) => ({ missionId: id, ...data } as Mission))
@@ -21,6 +21,6 @@ export function useMissions() {
         return () => unsub();
       }),
     staleTime: Infinity,
-    enabled: !!profileId,
+    enabled: !!user?.uid,
   });
 }

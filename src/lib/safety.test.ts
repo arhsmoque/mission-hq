@@ -15,14 +15,15 @@ describe('sanitizeResponse', () => {
     expect(r).toContain(REDIRECT);
   });
 
-  it('does NOT redirect a reply longer than 150 chars that mentions an OCR number', () => {
-    // Responses > 150 chars are explanations, not direct answers — should pass through
+  it('redirects a reply longer than 150 chars that echoes an OCR number', () => {
+    // Length does not exempt a response from the OCR-number check — a long reply
+    // can still leak the answer
     const reply = 'You already know that 5 is the number of fingers on one hand, right? '
       + 'So think about what happens when you combine two groups of fingers together. '
       + 'What total do you get?';
     expect(reply.length).toBeGreaterThan(150);
     const r = sanitizeResponse(reply, '5 apples');
-    expect(r).toBe(reply);
+    expect(r).toContain(REDIRECT);
   });
 
   it('blocks "The answer is <number>"', () => {

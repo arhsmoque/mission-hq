@@ -117,12 +117,11 @@ export interface LessonTocEntry {
   pageStart: number;
 }
 
-export type LessonActivityType =
-  | 'recall'
-  | 'guided_practice'
-  | 'independent_practice'
-  | 'reflection'
-  | 'creative';
+export const LESSON_ACTIVITY_TYPES = [
+  'recall', 'guided_practice', 'independent_practice', 'reflection', 'creative',
+] as const;
+
+export type LessonActivityType = typeof LESSON_ACTIVITY_TYPES[number];
 
 export interface LessonActivity {
   type: LessonActivityType;
