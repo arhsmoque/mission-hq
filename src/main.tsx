@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from './lib/firebase'
 import { useRootStore } from './stores/rootStore'
+import { seedMethodsIfEmpty } from './lib/methodSeeds'
 import './index.css'
 import App from './App'
 
@@ -26,6 +27,7 @@ onAuthStateChanged(auth, (firebaseUser) => {
         avatarUrl: user?.avatarUrl ?? '🤖',
       })
     }
+    seedMethodsIfEmpty().catch(() => {/* non-critical, silently ignore */});
   } else {
     setUser(null)
   }
