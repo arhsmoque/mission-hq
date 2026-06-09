@@ -3,6 +3,9 @@
   "name": "mission-hq",
   "compatibility_date": "2026-05-13",
   "main": "./src/worker.ts",
+  "build": {
+    "command": "npm run build"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
