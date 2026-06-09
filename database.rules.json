@@ -30,6 +30,13 @@
           }
         }
       },
+      "aiCompanions": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$companionId": {
+          ".validate": "newData.hasChildren(['companionId', 'state', 'updatedAt'])"
+        }
+      },
       "vocab": {
         "$uid": {
           ".read": "auth != null && auth.uid == $uid",
