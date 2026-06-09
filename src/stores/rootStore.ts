@@ -1,7 +1,11 @@
 import { create } from 'zustand';
-import { DEFAULT_MODEL_ID } from '@/lib/models';
+import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from '@/lib/models';
 import type { ProfileId } from '@/features/profile/profiles';
 import type { AuthUser } from '@/types';
+
+function validModel(id: string | undefined): string {
+  return AVAILABLE_MODELS.some((m) => m.id === id) ? id! : DEFAULT_MODEL_ID;
+}
 
 const ADMIN_MODEL_KEY = 'mhq_admin_model';
 const DEFAULT_ADMIN_MODEL = 'gemini-2.5-pro';
@@ -98,7 +102,7 @@ export const useRootStore = create<
     set({ activeGadgets: gadgets });
     if (profileId) savePrefs(profileId, { activeGadgets: gadgets });
   },
-  selectedModel: _initPrefs.selectedModel ?? DEFAULT_MODEL_ID,
+  selectedModel: validModel(_initPrefs.selectedModel),
   setSelectedModel: (model) => {
     const { profileId } = get();
     set({ selectedModel: model });
@@ -133,7 +137,7 @@ export const useRootStore = create<
       earnedBadges:    prefs.earnedBadges    ?? [],
       unlockedGadgets: prefs.unlockedGadgets ?? ['hint_machine'],
       activeGadgets:   prefs.activeGadgets   ?? ['hint_machine'],
-      selectedModel:   prefs.selectedModel   ?? DEFAULT_MODEL_ID,
+      selectedModel:   validModel(prefs.selectedModel),
     });
   },
   clearProfile: () => {

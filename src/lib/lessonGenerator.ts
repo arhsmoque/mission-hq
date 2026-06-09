@@ -12,6 +12,7 @@ import { aiAdapter, lessonStorage } from '@/adapters';
 import { getCachedMethod, selectBestMethod } from './methodRegistry';
 import { buildLessonActivityPrompt, buildEvaluationPrompt } from './prompts';
 import { z } from 'zod';
+import { LESSON_ACTIVITY_TYPES } from '@/types';
 import type { ResourceEntry, TeachingMethod, LessonSection, LessonTocEntry, LessonActivity, EvaluationAttempt } from '@/types';
 
 const GEN_MODEL   = 'gemini-2.5-flash';
@@ -20,7 +21,7 @@ const MAX_RETRIES = 2;
 // ── Zod schema for generated section output ──────────────────────────────────
 
 const LessonActivitySchema = z.object({
-  type: z.enum(['recall', 'guided_practice', 'independent_practice', 'reflection', 'creative']),
+  type: z.enum(LESSON_ACTIVITY_TYPES),
   instruction: z.string().min(1, 'instruction is required'),
   hint: z.string(),
   successCriteria: z.string().min(1, 'successCriteria is required'),
@@ -93,15 +94,19 @@ export async function generateLesson(opts: GenerateLessonOptions): Promise<strin
     updatedAt:      now,
   });
 
-  for (let i = 0; i < sections.length; i++) {
-    onProgress?.({
-      phase:          'generating',
-      sectionsDone:   i,
-      sectionsTotal:  sections.length,
-      currentSection: sections[i].title,
-    });
-    await generateAndSaveSection(method, sections[i], uid, lessonId);
-  }
+  let sectionsDone = 0;
+  onProgress?.({ phase: 'generating', sectionsDone: 0, sectionsTotal: sections.length });
+  await Promise.allSettled(
+    sections.map(async (section) => {
+      await generateAndSaveSection(method, section, uid, lessonId);
+      onProgress?.({
+        phase: 'generating',
+        sectionsDone: ++sectionsDone,
+        sectionsTotal: sections.length,
+        currentSection: section.title,
+      });
+    })
+  );
 
   await lessonStorage.updateLesson(uid, lessonId, {
     status:    'ready',
@@ -115,6 +120,7 @@ export async function generateLesson(opts: GenerateLessonOptions): Promise<strin
 // ── Internals ─────────────────────────────────────────────────────────────────
 
 function sliceSectionMarkdown(fullText: string, pageStart: number, pageEnd: number): string {
+  if (pageStart < 1) return '';  // extractor emits markers starting at 1; 0 is not a valid page
   const startRe = new RegExp(`---\\s*PAGE\\s+${pageStart}\\s*---`);
   const endRe   = new RegExp(`---\\s*PAGE\\s+${pageEnd + 1}\\s*---`);
 
@@ -167,8 +173,9 @@ async function generateAndSaveSection(
   uid: string,
   lessonId: string,
 ): Promise<void> {
-  let activitiesJson     = '';
-  let overallPass        = false;
+  let activitiesJson       = '';
+  let parsedActivities: Record<string, unknown> = {};
+  let overallPass          = false;
   let extraConstraints: string | undefined;
   const evalLog: EvaluationAttempt[] = [];
 
@@ -191,9 +198,8 @@ async function generateAndSaveSection(
       activitiesJson = raw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
 
       // Validate JSON structure
-      let parsedGen: Record<string, unknown>;
       try {
-        parsedGen = JSON.parse(activitiesJson) as Record<string, unknown>;
+        parsedActivities = JSON.parse(activitiesJson) as Record<string, unknown>;
       } catch {
         extraConstraints = 'Your previous response was not valid JSON. Return ONLY valid JSON.';
         evalLog.push({ attempt, pass: false, issues: ['Generation JSON parse failed'], timestamp: Date.now() });
@@ -201,7 +207,7 @@ async function generateAndSaveSection(
       }
 
       // Zod schema validation
-      const zodResult = LessonSectionOutputSchema.safeParse(parsedGen);
+      const zodResult = LessonSectionOutputSchema.safeParse(parsedActivities);
       if (!zodResult.success) {
         const zodIssues = zodResult.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`);
         extraConstraints = `Schema validation failed:\n${zodIssues.join('\n')}\n\nFix these issues and return valid JSON matching the schema exactly.`;
@@ -240,24 +246,13 @@ async function generateAndSaveSection(
     }
   }
 
-  let parsed: Record<string, unknown> = {};
-  try {
-    parsed = JSON.parse(activitiesJson) as Record<string, unknown>;
-  } catch {
-    await lessonStorage.updateSection(uid, lessonId, section.sectionId, {
-      status: 'needs_review',
-      evaluationLog: evalLog,
-    });
-    return;
-  }
-
   await lessonStorage.updateSection(uid, lessonId, section.sectionId, {
     status:                overallPass ? 'generated' : 'needs_review',
-    bloomLevel:            parsed.bloomLevel             as number | undefined,
-    learningObjective:     parsed.learningObjective      as string | undefined,
-    prerequisiteKnowledge: parsed.prerequisiteKnowledge  as string | undefined,
-    activities:            parsed.activities              as LessonActivity[] | undefined,
-    commonMisconceptions:  parsed.commonMisconceptions    as string[] | undefined,
+    bloomLevel:            parsedActivities.bloomLevel             as number | undefined,
+    learningObjective:     parsedActivities.learningObjective      as string | undefined,
+    prerequisiteKnowledge: parsedActivities.prerequisiteKnowledge  as string | undefined,
+    activities:            parsedActivities.activities              as LessonActivity[] | undefined,
+    commonMisconceptions:  parsedActivities.commonMisconceptions    as string[] | undefined,
     generatedAt:           Date.now(),
     evaluationLog:         evalLog,
   });

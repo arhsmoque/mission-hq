@@ -1,12 +1,10 @@
 export function sanitizeResponse(response: string, ocrText: string): string {
-  if (response.length <= 150) {
-    const ocrNumbers = new Set((ocrText.match(/\b\d+(?:\.\d+)?\b/g) || []));
-    const responseNumbers = response.match(/\b\d+(?:\.\d+)?\b/g) || [];
+  const ocrNumbers = new Set((ocrText.match(/\b\d+(?:\.\d+)?\b/g) || []));
+  const responseNumbers = response.match(/\b\d+(?:\.\d+)?\b/g) || [];
 
-    for (const num of responseNumbers) {
-      if (ocrNumbers.has(num)) {
-        return "That's a great question! What strategy could you use to find out? Try breaking it into smaller parts or drawing a diagram.";
-      }
+  for (const num of responseNumbers) {
+    if (ocrNumbers.has(num)) {
+      return "That's a great question! What strategy could you use to find out? Try breaking it into smaller parts or drawing a diagram.";
     }
   }
 
