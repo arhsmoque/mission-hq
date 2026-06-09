@@ -13,7 +13,7 @@
  */
 
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getAuth, signInAnonymously, connectAuthEmulator } from 'firebase/auth';
 import {
   getDatabase,
   ref,
@@ -21,6 +21,7 @@ import {
   onChildAdded,
   runTransaction,
   update,
+  connectDatabaseEmulator,
 } from 'firebase/database';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
@@ -46,6 +47,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig, 'mission-hq-local-companion');
 const auth = getAuth(app);
 const db = getDatabase(app);
+
+if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`, { disableWarnings: true });
+}
+
+if (process.env.FIREBASE_DATABASE_EMULATOR_HOST) {
+  const [host, port = '9000'] = process.env.FIREBASE_DATABASE_EMULATOR_HOST.split(':');
+  connectDatabaseEmulator(db, host, Number(port));
+}
 
 const templateCache = new Map();
 
