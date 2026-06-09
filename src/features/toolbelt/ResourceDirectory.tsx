@@ -3,8 +3,10 @@ import { resourceDirectory } from '@/adapters';
 import { useRootStore } from '@/stores/rootStore';
 import { detectSource } from '@/lib/sourceDetector';
 import { extractResource, type ExtractionProgress } from '@/lib/resourceExtractor';
+import { generateLesson, type LessonGenerationProgress } from '@/lib/lessonGenerator';
 import { SUBJECTS, SUBJECT_LABELS, SCHOOL_TYPE_LABELS } from '@/types';
 import type { ResourceEntry, SchoolType, Subject } from '@/types';
+import { PROFILES } from '@/features/profile/profiles';
 
 const SCHOOL_TYPES: SchoolType[] = ['sk', 'srjk_c', 'srjk_t', 'kafa', 'tadika', 'other'];
 const YEAR_LEVELS = [1, 2, 3, 4, 5, 6];
@@ -36,7 +38,9 @@ export default function ResourceDirectory() {
   const [saving, setSaving] = useState(false);
   const [filterYear, setFilterYear] = useState<number | 'all'>('all');
   const [error, setError] = useState('');
-  const [extracting, setExtracting] = useState<Record<string, ExtractionProgress>>({});
+  const [extracting,  setExtracting]  = useState<Record<string, ExtractionProgress>>({});
+  const [generating,  setGenerating]  = useState<Record<string, LessonGenerationProgress>>({});
+  const [genProfile,  setGenProfile]  = useState<Record<string, string>>({}); // resourceId → profileId
 
   useEffect(() => {
     return resourceDirectory.subscribeResources(setResources);
@@ -102,6 +106,35 @@ export default function ResourceDirectory() {
     const done  = p.pagesProcessed ?? 0;
     const total = p.pagesFound ?? '?';
     return `Extracting page ${done} / ${total}…`;
+  }
+
+  async function handleGenerate(resource: ResourceEntry) {
+    if (!user) return;
+    const profileId = genProfile[resource.resourceId] ?? PROFILES[0].id;
+    setGenerating((prev) => ({ ...prev, [resource.resourceId]: { phase: 'preparing', sectionsDone: 0, sectionsTotal: 0 } }));
+    try {
+      await generateLesson({
+        resource,
+        uid: user.uid,
+        profileId,
+        onProgress: (p) => setGenerating((prev) => ({ ...prev, [resource.resourceId]: p })),
+      });
+    } catch {
+      // errors bubble to Firebase; clear local state
+    } finally {
+      setGenerating((prev) => {
+        const next = { ...prev };
+        delete next[resource.resourceId];
+        return next;
+      });
+    }
+  }
+
+  function genProgressLabel(p: LessonGenerationProgress): string {
+    if (p.phase === 'preparing') return 'Preparing lesson…';
+    if (p.phase === 'done')      return 'Lesson created!';
+    const section = p.currentSection ? ` — ${p.currentSection}` : '';
+    return `Generating section ${p.sectionsDone + 1} / ${p.sectionsTotal}${section}`;
   }
 
   const displayed = filterYear === 'all'
@@ -332,6 +365,35 @@ export default function ResourceDirectory() {
                           )}
                         </ol>
                       </details>
+                    )}
+
+                    {/* Generate lesson section */}
+                    {r.status === 'ready' && r.extractedContent && (
+                      generating[r.resourceId] ? (
+                        <p className="mt-2 text-xs text-accent">
+                          ✦ {genProgressLabel(generating[r.resourceId])}
+                        </p>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-2 flex-wrap">
+                          <select
+                            value={genProfile[r.resourceId] ?? PROFILES[0].id}
+                            onChange={(e) => setGenProfile((prev) => ({ ...prev, [r.resourceId]: e.target.value }))}
+                            className="rounded-lg border border-border bg-surface px-2 py-0.5 text-xs text-text focus:border-accent focus:outline-none"
+                            style={{ minHeight: 'unset' }}
+                          >
+                            {PROFILES.map((p) => (
+                              <option key={p.id} value={p.id}>{p.emoji} {p.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handleGenerate(r)}
+                            className="text-xs text-green border border-green/40 rounded-lg px-2 py-0.5 hover:bg-green/10 transition-colors"
+                            style={{ minHeight: 'unset', minWidth: 'unset' }}
+                          >
+                            Generate Lesson
+                          </button>
+                        </div>
+                      )
                     )}
                   </div>
 

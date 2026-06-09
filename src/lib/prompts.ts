@@ -1,4 +1,6 @@
 import type { ChatMessage } from './ai';
+import type { AIChatMessage } from '@/ports/ai-port';
+import type { EvaluationCriteria } from '@/types';
 
 export function buildChatPrompt(options: {
   ocrText: string;
@@ -92,5 +94,55 @@ export function buildChinesePrompt(text: string, mode: 'pinyin' | 'translate' | 
   return [
     { role: 'system', content: 'You are a Chinese language tutor for Malaysian primary school students.' },
     { role: 'user', content: `${instruction}\n\nText: ${text}` },
+  ];
+}
+
+// ── Teaching Method Engine prompts ─────────────────────────────────────────
+
+export function buildLessonActivityPrompt(options: {
+  systemPrompt:    string;
+  sectionTitle:    string;
+  sectionId:       string;
+  sectionMarkdown: string;
+  outputSchema:    Record<string, unknown>;
+}): AIChatMessage[] {
+  const { systemPrompt, sectionTitle, sectionId, sectionMarkdown, outputSchema } = options;
+  return [
+    { role: 'system', content: systemPrompt },
+    {
+      role: 'user',
+      content:
+        `Title: ${sectionTitle}\nSection ID: ${sectionId}\n\n` +
+        `OUTPUT SCHEMA (return JSON exactly matching this):\n${JSON.stringify(outputSchema, null, 2)}\n\n` +
+        `CONTENT (extracted from textbook):\n${sectionMarkdown.slice(0, 5000)}`,
+    },
+  ];
+}
+
+export function buildEvaluationPrompt(options: {
+  rubric:        EvaluationCriteria[];
+  activitiesJson: string;
+  sectionTitle:  string;
+}): AIChatMessage[] {
+  const { rubric, activitiesJson, sectionTitle } = options;
+  const rubricText = rubric
+    .map((r, i) => `${i + 1}. [${r.required ? 'REQUIRED' : 'optional'}] ${r.check}`)
+    .join('\n');
+
+  return [
+    {
+      role: 'system',
+      content:
+        'You are a curriculum quality evaluator for Malaysian primary school materials (ages 7–12).\n' +
+        'Evaluate the lesson activities against the rubric.\n' +
+        'Return ONLY valid JSON: { "overallPass": boolean, "issues": string[] }\n' +
+        'overallPass = true only when ALL required checks pass.\n' +
+        'issues = specific problems found (empty array if none).',
+    },
+    {
+      role: 'user',
+      content:
+        `Section: ${sectionTitle}\n\nRUBRIC:\n${rubricText}\n\nGENERATED ACTIVITIES:\n${activitiesJson}`,
+    },
   ];
 }

@@ -7,6 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Stage 3: Teaching Method Engine
+
+- **`src/lib/methodRegistry.ts`** — 5-minute client-side cache over Firebase method adapter; `selectBestMethod(subject)` falls back to Bloom's Taxonomy (Stage 5 will wire analytics-driven selection)
+- **`src/lib/lessonGenerator.ts`** — `generateLesson()` orchestrator: builds sections from TOC + PAGE markers, runs two-pass Gemini (generate at temp 0.3 → evaluate at temp 0.1), retries up to twice with evaluation issues as extra constraints, saves all sections to Firebase
+- **`src/lib/prompts.ts`** — `buildLessonActivityPrompt()` and `buildEvaluationPrompt()` for the two-pass engine
+- **`src/main.tsx`** — `seedMethodsIfEmpty()` called on first authenticated session (seeds Bloom's Taxonomy once)
+- **`src/features/toolbelt/ResourceDirectory.tsx`** — Generate Lesson button on extracted resources: profile picker (Asma/Aflah/Haidar), live progress (preparing → generating section N/total → done)
+
 ### Added — Stage 2: AnyFlip / FlipHTML5 Extraction Pipeline
 
 - **`src/worker.ts`** — `GET /api/resource/proxy-image` CORS proxy (allowlist: AnyFlip, FlipHTML5 domains); returns `{ found, base64, mimeType }` for safe client-side fetching
