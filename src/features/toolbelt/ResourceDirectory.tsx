@@ -60,7 +60,7 @@ export default function ResourceDirectory() {
         schoolType: form.schoolType,
         subject:    form.subject,
         yearLevel:  form.yearLevel,
-        description: form.description.trim() || undefined,
+        description: form.description.trim() || '',
         status:     'pending',
         addedBy:    user.uid,
         addedAt:    Date.now(),
