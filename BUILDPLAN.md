@@ -23,7 +23,7 @@ Expand Mission HQ from a homework-chunking tool into a full adaptive learning pl
 | Stage | Name | Status |
 |---|---|---|
 | 1 | Data Layer Foundation | ✅ Complete |
-| 2 | PDF Ingestion Pipeline | ⬜ Not started |
+| 2 | PDF Ingestion Pipeline | ✅ Complete |
 | 3 | Teaching Method Engine | ⬜ Not started |
 | 4 | Lesson UI + Parent Review | ⬜ Not started |
 | 5 | Analytics + Feedback Loop | ⬜ Not started |

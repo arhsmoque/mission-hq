@@ -7,6 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Stage 2: AnyFlip / FlipHTML5 Extraction Pipeline
+
+- **`src/worker.ts`** — `GET /api/resource/proxy-image` CORS proxy (allowlist: AnyFlip, FlipHTML5 domains); returns `{ found, base64, mimeType }` for safe client-side fetching
+- **`src/worker.ts`** — `POST /api/ai/extract-pages` batch vision endpoint; accepts up to 8 page images, makes a single multi-image Gemini call, returns extracted text + token usage
+- **`src/lib/resourceExtractor.ts`** — Full orchestration: binary-search page probing (up to 300 pages), 8-page batch extraction loop, Gemini-powered TOC generation, Firebase save
+- **`src/features/toolbelt/ResourceDirectory.tsx`** — Extract button for flipbook resources (pending/error state); live progress labels (probing → extracting page N/total → generating TOC → saving); collapsible TOC preview once ready
+- **`src/types/index.ts`** — `ResourceEntry.extractedContent` field (`{ fullText, toc }`)
+
 ### Added — Stage 1: Data Layer Foundation
 
 - **`src/types/index.ts`** — New domain types: `TeachingMethod`, `MethodPhase`, `EvaluationCriteria`, `LessonTocEntry`, `LessonSection`, `LessonActivity`, `Lesson`, `AnalyticsSession`
