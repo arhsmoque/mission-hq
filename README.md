@@ -6,9 +6,13 @@ Turn homework into missions! An AI-powered learning tool for kids.
 
 | File | Purpose |
 |---|---|
-| `src/config.ts` | **Edit this first** — all Firebase, OpenRouter, and app settings |
+| `src/config.ts` | **Edit this first** — Firebase and app settings |
 | `src/lib/firebase.ts` | Firebase init (reads from `config.ts`) |
-| `src/lib/ai.ts` | OpenRouter client (reads from `config.ts`) |
+| `src/lib/ai.ts` | Backward-compatible AI shim that delegates to `@/adapters` |
+| `src/worker.ts` | Cloudflare Worker proxy for Gemini API key mode |
+| `scripts/local-gemini-companion.mjs` | Desktop companion that watches Firebase jobs and runs Gemini CLI locally |
+| `scripts/gemini-prompts/*.md` | Prompt templates for local companion job kinds |
+| `docs/local-gemini-companion.md` | Setup guide for Local CLI mode |
 | `wrangler.jsonc` | Cloudflare Pages deployment config |
 | `public/_redirects` | SPA catch-all for client-side routing |
 
@@ -48,20 +52,40 @@ npx wrangler pages deploy dist --project-name mission-hq
 4. Enable **Storage** → Default rules
 5. Deploy rules: `firebase deploy --only database,storage`
 
+### 4. Local Gemini CLI Companion
+
+Mission HQ can queue AI jobs to Firebase and let your home desktop run them through Gemini CLI:
+
+```bash
+npm install -g @google/gemini-cli
+gemini
+npm run companion:gemini
+```
+
+Then use:
+
+```text
+Toolbelt → Admin → Chat → Local CLI
+```
+
+Full setup notes: `docs/local-gemini-companion.md`.
+
 ## Architecture
 
 - **Vite + React + TypeScript** — client-side SPA
-- **Firebase Realtime Database** — stores missions, chat, progress (same project as beelal coffee)
+- **Firebase Realtime Database** — stores missions, chat, progress, and local companion AI jobs
 - **Firebase Anonymous Auth** — no login required
 - **Firebase Storage** — worksheet images
 - **Cloudflare Pages** — serves the built app globally
-- **OpenRouter** — multi-model AI gateway (DeepSeek, Claude, Gemini, etc.)
+- **Gemini API Worker mode** — Cloudflare Worker keeps the API key server-side
+- **Local Gemini CLI companion mode** — desktop worker uses local Gemini CLI Google sign-in
 
 ## Cost
 
 - Firebase Spark plan: FREE (Auth, RTDB, Storage within limits)
 - Cloudflare Pages: FREE
-- OpenRouter: ~$6.50/month at 500 missions
+- Gemini API Worker mode: governed by Gemini API quota/billing
+- Local Gemini CLI companion mode: governed by the signed-in Gemini CLI account/session limits
 
 ## Local Mode
 
@@ -72,6 +96,6 @@ A localStorage-only variant exists in `src/lib/localDb.ts`. It replaces Firebase
 | Auth | Firebase Anonymous | Auto-generated local uid |
 | Database | Firebase Realtime DB | `localStorage` |
 | Deploy | Cloudflare Pages | Any static host |
-| AI | OpenRouter (client-side) | OpenRouter (client-side) |
+| AI | Gemini API Worker or Local Gemini CLI companion | Manual/local-only workflows |
 
 To use local mode: swap `useMission.ts` and `useChat.ts` imports from `firebase/database` → `@/lib/localDb`. A `StorageAdapter` interface to make this switchable at runtime is a future ADR.
