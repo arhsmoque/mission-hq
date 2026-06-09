@@ -1,11 +1,14 @@
 /**
  * Gemini adapter — implements AIPort via the /api/ai Cloudflare Worker proxy.
  *
- * The Worker holds the OAuth credentials from the Gemini CLI subscription;
+ * The Worker holds the Gemini API key as a Cloudflare secret;
  * no credentials are ever bundled into the client.
  *
  * Local dev: run `wrangler dev --port 8787` alongside `npm run dev`
  * (Vite proxies /api/* to localhost:8787 — see vite.config.ts).
+ *
+ * Separate local-companion mode is implemented through Firebase aiJobs and the
+ * desktop Gemini CLI worker, not through this API proxy adapter.
  */
 
 import type { AIPort, AIChatMessage, OcrResult } from '@/ports/ai-port';

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { AVAILABLE_MODELS } from '@/lib/models';
 import { useRootStore } from '@/stores/rootStore';
+import { waitForLocalCompanionResult } from '@/lib/localCompanionQueue';
+import type { AIChatMessage } from '@/ports/ai-port';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -10,11 +12,21 @@ interface Message {
   error?: boolean;
 }
 
+type AiRoute = 'api' | 'local_companion';
+
 const ADMIN_DEFAULT_SYSTEM = `You are a curriculum design assistant for a primary school learning app called Mission HQ.
 You help the admin (a parent/teacher) design teaching methods, improve lesson prompts, generate content structures, and review pedagogical approaches.
 Be direct and thorough. You may give complete answers, solutions, and detailed guidance.`;
 
+const AI_ROUTE_KEY = 'mhq_admin_ai_route';
+
+function loadAiRoute(): AiRoute {
+  const saved = localStorage.getItem(AI_ROUTE_KEY);
+  return saved === 'local_companion' ? 'local_companion' : 'api';
+}
+
 export default function AdminChat() {
+  const user          = useRootStore((s) => s.user);
   const adminModel    = useRootStore((s) => s.adminModel);
   const setAdminModel = useRootStore((s) => s.setAdminModel);
 
@@ -23,6 +35,7 @@ export default function AdminChat() {
   const [systemPrompt, setSystemPrompt] = useState(ADMIN_DEFAULT_SYSTEM);
   const [showSystem, setShowSystem]     = useState(false);
   const [temperature, setTemperature]   = useState(0.7);
+  const [aiRoute, setAiRouteState]      = useState<AiRoute>(loadAiRoute);
   const [loading, setLoading]           = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -30,6 +43,11 @@ export default function AdminChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  function setAiRoute(next: AiRoute) {
+    localStorage.setItem(AI_ROUTE_KEY, next);
+    setAiRouteState(next);
+  }
 
   async function send() {
     const text = input.trim();
@@ -41,13 +59,37 @@ export default function AdminChat() {
     setInput('');
     setLoading(true);
 
-    const apiMessages = [
-      ...(systemPrompt.trim() ? [{ role: 'system', content: systemPrompt.trim() }] : []),
+    const apiMessages: AIChatMessage[] = [
+      ...(systemPrompt.trim()
+        ? [{ role: 'system' as const, content: systemPrompt.trim() }]
+        : []),
       ...history.map((m) => ({ role: m.role, content: m.content })),
     ];
 
     const startTime = Date.now();
     try {
+      if (aiRoute === 'local_companion') {
+        if (!user?.uid) throw new Error('No signed-in Mission HQ user; cannot create local companion job.');
+
+        const result = await waitForLocalCompanionResult(user.uid, {
+          kind: 'admin_chat',
+          messages: apiMessages,
+          model: adminModel,
+          temperature,
+          metadata: {
+            source: 'toolbelt_admin_chat',
+            requestedAt: new Date().toISOString(),
+          },
+        });
+
+        setMessages([...history, {
+          role: 'assistant',
+          content: result.text ?? '',
+          latencyMs: Date.now() - startTime,
+        }]);
+        return;
+      }
+
       const res = await fetch('/api/ai/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,6 +152,16 @@ export default function AdminChat() {
           ))}
         </select>
 
+        <select
+          value={aiRoute}
+          onChange={(e) => setAiRoute(e.target.value as AiRoute)}
+          className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
+          title="Choose whether this admin chat uses the deployed Gemini API Worker or your desktop Gemini CLI companion."
+        >
+          <option value="api">Gemini API</option>
+          <option value="local_companion">Local CLI</option>
+        </select>
+
         <div className="flex items-center gap-2 text-xs text-text-2 shrink-0">
           <span>Temp</span>
           <input
@@ -144,6 +196,12 @@ export default function AdminChat() {
         )}
       </div>
 
+      {aiRoute === 'local_companion' && (
+        <div className="mb-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-2">
+          Local CLI mode writes this chat as a Firebase job. Keep <code>npm run companion:gemini</code> running on your desktop.
+        </div>
+      )}
+
       {/* System prompt */}
       {showSystem && (
         <textarea
@@ -161,7 +219,7 @@ export default function AdminChat() {
         {messages.length === 0 && (
           <div className="text-center text-sm text-text-3 pt-8">
             <p className="text-2xl mb-2">⚡</p>
-            <p>Direct line to Gemini — no filters.</p>
+            <p>{aiRoute === 'local_companion' ? 'Desktop Gemini CLI companion mode.' : 'Direct line to Gemini — no filters.'}</p>
             <p className="mt-1 text-xs">⌘↵ or Ctrl↵ to send</p>
           </div>
         )}
@@ -187,6 +245,7 @@ export default function AdminChat() {
                       {msg.tokens.prompt}↑ {msg.tokens.completion}↓ ({msg.tokens.total} total)
                     </span>
                   )}
+                  {aiRoute === 'local_companion' && <span>local CLI</span>}
                 </div>
               )}
             </div>
@@ -218,7 +277,7 @@ export default function AdminChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Ask Gemini anything…"
+          placeholder={aiRoute === 'local_companion' ? 'Queue a job for your desktop Gemini CLI…' : 'Ask Gemini anything…'}
           rows={2}
           disabled={loading}
           className="flex-1 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder-text-3 focus:border-accent focus:outline-none resize-none disabled:opacity-50"

@@ -4,6 +4,7 @@ import PinGate from './PinGate';
 import AdminChat from './AdminChat';
 import ModelPicker from './ModelPicker';
 import ResourceDirectory from './ResourceDirectory';
+import LocalCompanionStatusPanel from './LocalCompanionStatusPanel';
 
 type AdminTab = 'chat' | 'directory' | 'settings';
 
@@ -62,12 +63,19 @@ export default function AdminPanel() {
       )}
 
       {tab === 'settings' && (
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto pr-1">
           <section className="rounded-2xl bg-bg-2 p-4 border border-border">
             <h3 className="text-sm font-semibold text-text-2 mb-3">
               Child AI Brain
             </h3>
             <ModelPicker />
+          </section>
+
+          <section className="rounded-2xl bg-bg-2 p-4 border border-border">
+            <h3 className="text-sm font-semibold text-text-2 mb-3">
+              Local Gemini Companion
+            </h3>
+            <LocalCompanionStatusPanel />
           </section>
         </div>
       )}

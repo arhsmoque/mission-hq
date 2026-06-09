@@ -21,6 +21,22 @@
           ".write": "auth != null && auth.uid == $uid"
         }
       },
+      "aiJobs": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$uid": {
+          "$jobId": {
+            ".validate": "newData.hasChildren(['status', 'input', 'updatedAt'])"
+          }
+        }
+      },
+      "aiCompanions": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$companionId": {
+          ".validate": "newData.hasChildren(['companionId', 'state', 'updatedAt'])"
+        }
+      },
       "vocab": {
         "$uid": {
           ".read": "auth != null && auth.uid == $uid",
