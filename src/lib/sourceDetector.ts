@@ -35,7 +35,7 @@ export function detectSource(rawUrl: string): SourceInfo {
       color: '#f97316',
       accountId,
       bookId,
-      pageImageTemplate: `https://online.anyflip.com/${accountId}/${bookId}/files/mobile/{n}.jpg`,
+      pageImageTemplate: `https://online.anyflip.com/${accountId}/${bookId}/files/mobile/{n}.webp`,
     };
   }
 
