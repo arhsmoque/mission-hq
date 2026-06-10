@@ -74,7 +74,6 @@ export async function extractResource(
 
   await resourceDirectory.updateResource(resource.resourceId, {
     status: 'extracting',
-    errorMessage: undefined,
   });
 
   try {
