@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useRootStore } from '@/stores/rootStore';
 import PinGate from './PinGate';
 import AdminChat from './AdminChat';
@@ -13,6 +14,7 @@ export default function AdminPanel() {
   const unlockAdmin   = useRootStore((s) => s.unlockAdmin);
   const lockAdmin     = useRootStore((s) => s.lockAdmin);
   const [tab, setTab] = useState<AdminTab>('chat');
+  const navigate      = useNavigate();
 
   if (!adminUnlocked) {
     return <PinGate onUnlock={unlockAdmin} />;
@@ -64,6 +66,14 @@ export default function AdminPanel() {
 
       {tab === 'settings' && (
         <div className="space-y-4 overflow-y-auto pr-1">
+          <button
+            onClick={() => navigate('/lesson-builder')}
+            className="w-full rounded-2xl bg-accent/10 border border-accent/30 px-4 py-3 text-left text-sm font-semibold text-accent active:scale-[0.98] transition-transform"
+            style={{ minHeight: 'unset' }}
+          >
+            📚 Lesson Builder
+          </button>
+
           <section className="rounded-2xl bg-bg-2 p-4 border border-border">
             <h3 className="text-sm font-semibold text-text-2 mb-3">
               Child AI Brain

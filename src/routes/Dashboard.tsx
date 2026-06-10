@@ -141,6 +141,13 @@ export default function Dashboard() {
               <span className="text-2xl">🀄</span>
               <p className="mt-1 text-sm font-semibold">Chinese Lab</p>
             </button>
+            <button
+              onClick={() => navigate('/lesson-builder')}
+              className="rounded-2xl bg-surface p-4 text-center shadow-sm active:scale-[0.98] border border-border"
+            >
+              <span className="text-2xl">📚</span>
+              <p className="mt-1 text-sm font-semibold">My Lessons</p>
+            </button>
           </div>
 
           <button
