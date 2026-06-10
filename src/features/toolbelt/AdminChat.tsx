@@ -2,7 +2,27 @@ import { useState, useRef, useEffect } from 'react';
 import { AVAILABLE_MODELS } from '@/lib/models';
 import { useRootStore } from '@/stores/rootStore';
 import { waitForLocalCompanionResult } from '@/lib/localCompanionQueue';
+import {
+  parseDirectoryActions,
+  stripActionFences,
+  executeDirectoryAction,
+  buildDirectoryContext,
+  DIRECTORY_SYSTEM_PROMPT,
+} from '@/lib/resourceDirectoryActions';
+import { resourceDirectory } from '@/adapters';
 import type { AIChatMessage } from '@/ports/ai-port';
+import type { DirectoryAction } from '@/lib/resourceDirectoryActions';
+import type { ResourceEntry } from '@/types';
+
+// ── Types ──────────────────────────────────────────────────────────────────
+
+type ActionStatus = 'pending' | 'executing' | 'done' | 'error';
+
+interface ActionEntry {
+  action: DirectoryAction;
+  status: ActionStatus;
+  result?: string;
+}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -10,15 +30,19 @@ interface Message {
   tokens?: { prompt: number; completion: number; total: number };
   latencyMs?: number;
   error?: boolean;
+  actions?: ActionEntry[];
 }
 
 type AiRoute = 'api' | 'openrouter' | 'local_companion';
+
+// ── Constants ──────────────────────────────────────────────────────────────
 
 const ADMIN_DEFAULT_SYSTEM = `You are a curriculum design assistant for a primary school learning app called Mission HQ.
 You help the admin (a parent/teacher) design teaching methods, improve lesson prompts, generate content structures, and review pedagogical approaches.
 Be direct and thorough. You may give complete answers, solutions, and detailed guidance.`;
 
-const AI_ROUTE_KEY = 'mhq_admin_ai_route';
+const AI_ROUTE_KEY  = 'mhq_admin_ai_route';
+const DIR_MODE_KEY  = 'mhq_admin_dir_mode';
 
 function loadAiRoute(): AiRoute {
   const saved = localStorage.getItem(AI_ROUTE_KEY);
@@ -27,11 +51,98 @@ function loadAiRoute(): AiRoute {
   return 'api';
 }
 
+// ── Action card ────────────────────────────────────────────────────────────
+
+function ActionCard({
+  entry,
+  onExecute,
+  onDismiss,
+}: {
+  entry: ActionEntry;
+  onExecute: () => void;
+  onDismiss: () => void;
+}) {
+  const { action, status, result } = entry;
+
+  const badgeColor =
+    action.action === 'add'    ? 'bg-green/20 text-green border-green/30' :
+    action.action === 'edit'   ? 'bg-yellow/20 text-yellow border-yellow/30' :
+    'bg-red/20 text-red border-red/30';
+
+  const label =
+    'label' in action ? action.label :
+    'resourceId' in action ? action.resourceId : '';
+
+  return (
+    <div className="mt-2 rounded-xl border border-border bg-bg-2 px-3 py-2 text-xs space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className={`rounded-md border px-2 py-0.5 font-mono font-semibold uppercase text-[10px] ${badgeColor}`}>
+          {action.action}
+        </span>
+        <span className="font-medium text-text truncate">{label}</span>
+      </div>
+
+      {action.action === 'add' && (
+        <div className="text-text-3 space-y-0.5">
+          <div className="truncate font-mono">{action.url}</div>
+          <div>Yr{action.yearLevel} · {action.subject} · {action.schoolType}</div>
+          {action.description && <div className="italic">{action.description}</div>}
+        </div>
+      )}
+
+      {action.action === 'edit' && (
+        <div className="text-text-3 font-mono text-[10px]">
+          {JSON.stringify(
+            Object.fromEntries(
+              Object.entries(action).filter(([k]) => k !== 'action' && k !== 'resourceId')
+            )
+          )}
+        </div>
+      )}
+
+      {action.action === 'delete' && (
+        <div className="text-red/80">ID: {action.resourceId}</div>
+      )}
+
+      {status === 'pending' && (
+        <div className="flex gap-2 pt-0.5">
+          <button
+            onClick={onExecute}
+            className="rounded-lg bg-accent px-3 py-1 text-bg font-medium hover:opacity-90 transition-opacity"
+          >
+            Execute
+          </button>
+          <button
+            onClick={onDismiss}
+            className="rounded-lg border border-border px-3 py-1 text-text-2 hover:border-text-2 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {status === 'executing' && (
+        <div className="text-text-3 italic">Executing…</div>
+      )}
+
+      {status === 'done' && (
+        <div className="text-green font-medium">{result}</div>
+      )}
+
+      {status === 'error' && (
+        <div className="text-red">{result}</div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
 export default function AdminChat() {
-  const user               = useRootStore((s) => s.user);
-  const adminModel         = useRootStore((s) => s.adminModel);
-  const setAdminModel      = useRootStore((s) => s.setAdminModel);
-  const openrouterModel    = useRootStore((s) => s.openrouterModel);
+  const user            = useRootStore((s) => s.user);
+  const adminModel      = useRootStore((s) => s.adminModel);
+  const setAdminModel   = useRootStore((s) => s.setAdminModel);
+  const openrouterModel = useRootStore((s) => s.openrouterModel);
 
   const [messages, setMessages]         = useState<Message[]>([]);
   const [input, setInput]               = useState('');
@@ -40,6 +151,10 @@ export default function AdminChat() {
   const [temperature, setTemperature]   = useState(0.7);
   const [aiRoute, setAiRouteState]      = useState<AiRoute>(loadAiRoute);
   const [loading, setLoading]           = useState(false);
+  const [directoryMode, setDirectoryModeState] = useState(
+    () => localStorage.getItem(DIR_MODE_KEY) === 'true'
+  );
+  const [resources, setResources]       = useState<ResourceEntry[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -47,9 +162,47 @@ export default function AdminChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Subscribe to resource directory when Dir mode is on
+  useEffect(() => {
+    if (!directoryMode) { setResources([]); return; }
+    return resourceDirectory.subscribeResources(setResources);
+  }, [directoryMode]);
+
   function setAiRoute(next: AiRoute) {
     localStorage.setItem(AI_ROUTE_KEY, next);
     setAiRouteState(next);
+  }
+
+  function setDirectoryMode(next: boolean) {
+    localStorage.setItem(DIR_MODE_KEY, String(next));
+    setDirectoryModeState(next);
+  }
+
+  function updateAction(msgIdx: number, actionIdx: number, patch: Partial<ActionEntry>) {
+    setMessages((prev) =>
+      prev.map((m, mi) => {
+        if (mi !== msgIdx || !m.actions) return m;
+        return {
+          ...m,
+          actions: m.actions.map((a, ai) =>
+            ai === actionIdx ? { ...a, ...patch } : a
+          ),
+        };
+      })
+    );
+  }
+
+  async function handleExecuteAction(msgIdx: number, actionIdx: number, action: DirectoryAction) {
+    updateAction(msgIdx, actionIdx, { status: 'executing' });
+    try {
+      const result = await executeDirectoryAction(action, user?.uid ?? 'admin');
+      updateAction(msgIdx, actionIdx, { status: 'done', result });
+    } catch (err) {
+      updateAction(msgIdx, actionIdx, {
+        status: 'error',
+        result: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   async function send() {
@@ -62,9 +215,17 @@ export default function AdminChat() {
     setInput('');
     setLoading(true);
 
+    // Build system context: base prompt + optional directory context
+    const systemParts: string[] = [];
+    if (systemPrompt.trim()) systemParts.push(systemPrompt.trim());
+    if (directoryMode) {
+      systemParts.push(DIRECTORY_SYSTEM_PROMPT);
+      systemParts.push(buildDirectoryContext(resources));
+    }
+
     const apiMessages: AIChatMessage[] = [
-      ...(systemPrompt.trim()
-        ? [{ role: 'system' as const, content: systemPrompt.trim() }]
+      ...(systemParts.length > 0
+        ? [{ role: 'system' as const, content: systemParts.join('\n\n---\n\n') }]
         : []),
       ...history.map((m) => ({ role: m.role, content: m.content })),
     ];
@@ -85,10 +246,13 @@ export default function AdminChat() {
           },
         });
 
+        const responseText = result.text ?? '';
+        const actions = directoryMode ? parseDirectoryActions(responseText) : [];
         setMessages([...history, {
           role: 'assistant',
-          content: result.text ?? '',
+          content: responseText,
           latencyMs: Date.now() - startTime,
+          actions: actions.map((a) => ({ action: a, status: 'pending' })),
         }]);
         return;
       }
@@ -117,11 +281,14 @@ export default function AdminChat() {
           error: true,
         }]);
       } else {
+        const responseText = data.text ?? '';
+        const actions = directoryMode ? parseDirectoryActions(responseText) : [];
         setMessages([...history, {
           role: 'assistant',
-          content: data.text ?? '',
+          content: responseText,
           tokens: data.tokens,
           latencyMs,
+          actions: actions.map((a) => ({ action: a, status: 'pending' })),
         }]);
       }
     } catch (err) {
@@ -193,6 +360,18 @@ export default function AdminChat() {
           System
         </button>
 
+        <button
+          onClick={() => setDirectoryMode(!directoryMode)}
+          title="Directory mode — AI can add/edit/delete resources"
+          className={`shrink-0 rounded-xl px-3 py-2 text-xs font-medium border transition-colors ${
+            directoryMode
+              ? 'bg-green/20 border-green/50 text-green'
+              : 'bg-surface border-border text-text-2'
+          }`}
+        >
+          Dir {directoryMode ? `(${resources.length})` : ''}
+        </button>
+
         {messages.length > 0 && (
           <button
             onClick={() => setMessages([])}
@@ -203,6 +382,7 @@ export default function AdminChat() {
         )}
       </div>
 
+      {/* Info banners */}
       {aiRoute === 'openrouter' && (
         <div className="mb-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-2">
           OpenRouter mode — using <code className="font-mono">{openrouterModel}</code>. Configure in Settings → OpenRouter.
@@ -211,6 +391,11 @@ export default function AdminChat() {
       {aiRoute === 'local_companion' && (
         <div className="mb-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-2">
           Local CLI mode writes this chat as a Firebase job. Keep <code>npm run companion:gemini</code> running on your desktop.
+        </div>
+      )}
+      {directoryMode && (
+        <div className="mb-3 rounded-xl border border-green/30 bg-green/10 px-3 py-2 text-xs text-text-2">
+          Directory mode — AI can add, edit, and delete resources. Actions require your confirmation before executing.
         </div>
       )}
 
@@ -236,6 +421,9 @@ export default function AdminChat() {
               aiRoute === 'openrouter'      ? `OpenRouter — ${openrouterModel}` :
               'Direct line to Gemini — no filters.'
             }</p>
+            {directoryMode && (
+              <p className="mt-1 text-xs text-green">Directory mode active — {resources.length} resources loaded</p>
+            )}
             <p className="mt-1 text-xs">⌘↵ or Ctrl↵ to send</p>
           </div>
         )}
@@ -249,7 +437,26 @@ export default function AdminChat() {
                 ? 'bg-red/10 border border-red/30 text-red rounded-bl-sm'
                 : 'bg-surface border border-border text-text rounded-bl-sm'
             }`}>
-              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+              {/* Strip action fences from display text */}
+              <p className="whitespace-pre-wrap leading-relaxed">
+                {msg.role === 'assistant' && msg.actions?.length
+                  ? stripActionFences(msg.content)
+                  : msg.content}
+              </p>
+
+              {/* Action confirmation cards */}
+              {msg.role === 'assistant' && msg.actions && msg.actions.length > 0 && (
+                <div className="space-y-2">
+                  {msg.actions.map((entry, ai) => (
+                    <ActionCard
+                      key={ai}
+                      entry={entry}
+                      onExecute={() => handleExecuteAction(i, ai, entry.action)}
+                      onDismiss={() => updateAction(i, ai, { status: 'error', result: 'Dismissed' })}
+                    />
+                  ))}
+                </div>
+              )}
 
               {msg.role === 'assistant' && !msg.error && (
                 <div className="flex gap-3 mt-2 text-xs text-text-3">
@@ -295,6 +502,7 @@ export default function AdminChat() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
           placeholder={
+            directoryMode             ? 'Ask to add/edit/delete a resource, or paste an AnyFlip URL…' :
             aiRoute === 'local_companion' ? 'Queue a job for your desktop Gemini CLI…' :
             aiRoute === 'openrouter'      ? `Ask via OpenRouter (${openrouterModel})…` :
             'Ask Gemini anything…'
