@@ -1,4 +1,4 @@
-import { ref, set, get } from 'firebase/database';
+import { ref, set, get, update } from 'firebase/database';
 import { rtdb } from './firebase';
 
 export function persistGamification(
@@ -11,6 +11,18 @@ export function persistGamification(
     gadgets,
     updatedAt: Date.now(),
   });
+}
+
+export async function getXP(uid: string): Promise<number> {
+  const snap = await get(ref(rtdb, `mission_hq/progress/${uid}/xp`));
+  return snap.exists() ? (snap.val() as number) : 0;
+}
+
+export async function addXP(uid: string, amount: number): Promise<number> {
+  const current = await getXP(uid);
+  const next    = current + amount;
+  await update(ref(rtdb, `mission_hq/progress/${uid}`), { xp: next, updatedAt: Date.now() });
+  return next;
 }
 
 export async function loadGamificationOnce(

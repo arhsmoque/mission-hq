@@ -12,15 +12,18 @@
  * aiAdapter is a runtime proxy — dispatches to the provider selected in store.
  */
 
-import { geminiAdapter }                                   from './ai/gemini-adapter';
-import { openrouterAdapter }                               from './ai/openrouter-adapter';
-import { firebaseMissionAdapter, firebaseChatAdapter }    from './storage/firebase-rtdb-adapter';
-import { firebaseMethodsAdapter }                          from './storage/firebase-methods-adapter';
-import { firebaseLessonsAdapter }                          from './storage/firebase-lessons-adapter';
-import { firebaseAnalyticsAdapter }                        from './analytics/firebase-analytics-adapter';
-import { firebaseResourcesAdapter }                        from './storage/firebase-resources-adapter';
-import { useRootStore }                                    from '@/stores/rootStore';
-import type { AIPort, AIChatMessage, OcrResult }           from '@/ports/ai-port';
+import { geminiAdapter }                                                    from './ai/gemini-adapter';
+import { openrouterAdapter }                                                from './ai/openrouter-adapter';
+import { firebaseMissionAdapter, firebaseChatAdapter }                     from './storage/firebase-rtdb-adapter';
+import { firebaseMethodsAdapter }                                           from './storage/firebase-methods-adapter';
+import { firebaseLessonsAdapter }                                           from './storage/firebase-lessons-adapter';
+import { firebaseAnalyticsAdapter }                                         from './analytics/firebase-analytics-adapter';
+import { firebaseResourcesAdapter }                                         from './storage/firebase-resources-adapter';
+import { firebaseCampaignsAdapter, firebaseSessionContentAdapter }         from './storage/firebase-campaigns-adapter';
+import { useRootStore }                                                     from '@/stores/rootStore';
+import type { AIPort, AIChatMessage, OcrResult }                            from '@/ports/ai-port';
+
+export { getPageSlice, splitExtractedPages } from './storage/firebase-resources-adapter';
 
 function getActiveAiAdapter(): AIPort {
   const { aiProvider } = useRootStore.getState();
@@ -39,9 +42,11 @@ export const aiAdapter: AIPort = {
   },
 };
 
-export const missionStorage     = firebaseMissionAdapter;       // MissionStoragePort
-export const chatStorage        = firebaseChatAdapter;          // ChatStoragePort
-export const methodRegistry     = firebaseMethodsAdapter;       // MethodRegistryPort
-export const lessonStorage      = firebaseLessonsAdapter;       // LessonStoragePort
-export const analyticsAdapter   = firebaseAnalyticsAdapter;     // AnalyticsPort
-export const resourceDirectory  = firebaseResourcesAdapter;     // ResourceDirectoryPort
+export const missionStorage     = firebaseMissionAdapter;            // MissionStoragePort
+export const chatStorage        = firebaseChatAdapter;               // ChatStoragePort
+export const methodRegistry     = firebaseMethodsAdapter;            // MethodRegistryPort
+export const lessonStorage      = firebaseLessonsAdapter;            // LessonStoragePort
+export const analyticsAdapter   = firebaseAnalyticsAdapter;          // AnalyticsPort
+export const resourceDirectory  = firebaseResourcesAdapter;          // ResourceDirectoryPort
+export const campaignStorage    = firebaseCampaignsAdapter;          // CampaignStoragePort
+export const sessionContent     = firebaseSessionContentAdapter;     // SessionContentPort

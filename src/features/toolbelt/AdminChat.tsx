@@ -9,17 +9,27 @@ import {
   buildDirectoryContext,
   DIRECTORY_SYSTEM_PROMPT,
 } from '@/lib/resourceDirectoryActions';
-import { resourceDirectory } from '@/adapters';
+import {
+  parseCampaignActions,
+  stripCampaignFences,
+  executeCampaignAction,
+  buildCampaignContext,
+  CAMPAIGN_SYSTEM_PROMPT,
+} from '@/lib/campaignActions';
+import { resourceDirectory, campaignStorage } from '@/adapters';
 import type { AIChatMessage } from '@/ports/ai-port';
 import type { DirectoryAction } from '@/lib/resourceDirectoryActions';
-import type { ResourceEntry } from '@/types';
+import type { CampaignAction } from '@/lib/campaignActions';
+import type { ResourceEntry, Campaign } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type ActionStatus = 'pending' | 'executing' | 'done' | 'error';
 
+type AnyAction = DirectoryAction | CampaignAction;
+
 interface ActionEntry {
-  action: DirectoryAction;
+  action: AnyAction;
   status: ActionStatus;
   result?: string;
 }
@@ -65,13 +75,15 @@ function ActionCard({
   const { action, status, result } = entry;
 
   const badgeColor =
-    action.action === 'add'    ? 'bg-green/20 text-green border-green/30' :
-    action.action === 'edit'   ? 'bg-yellow/20 text-yellow border-yellow/30' :
+    action.action === 'add'             ? 'bg-green/20 text-green border-green/30' :
+    action.action === 'edit'            ? 'bg-yellow/20 text-yellow border-yellow/30' :
+    action.action === 'create_campaign' ? 'bg-accent/20 text-accent border-accent/30' :
     'bg-red/20 text-red border-red/30';
 
   const label =
-    'label' in action ? action.label :
-    'resourceId' in action ? action.resourceId : '';
+    'label' in action ? (action as { label: string }).label :
+    'resourceId' in action ? (action as { resourceId: string }).resourceId :
+    'campaignId' in action ? (action as { campaignId: string }).campaignId : '';
 
   return (
     <div className="mt-2 rounded-xl border border-border bg-bg-2 px-3 py-2 text-xs space-y-1.5">
@@ -92,16 +104,26 @@ function ActionCard({
 
       {action.action === 'edit' && (
         <div className="text-text-3 font-mono text-[10px]">
-          {JSON.stringify(
-            Object.fromEntries(
-              Object.entries(action).filter(([k]) => k !== 'action' && k !== 'resourceId')
-            )
-          )}
+          {JSON.stringify(Object.fromEntries(
+            Object.entries(action).filter(([k]) => k !== 'action' && k !== 'resourceId')
+          ))}
         </div>
       )}
 
       {action.action === 'delete' && (
-        <div className="text-red/80">ID: {action.resourceId}</div>
+        <div className="text-red/80">ID: {(action as { resourceId: string }).resourceId}</div>
+      )}
+
+      {action.action === 'create_campaign' && (
+        <div className="text-text-3 space-y-0.5 text-[11px]">
+          <div>{action.profileId} · {action.type} · due {action.deadline}</div>
+          {action.scopeSectionTitles && <div>{action.scopeSectionTitles.join(', ')}</div>}
+          {action.scopePages && <div>Pages {action.scopePages.start}–{action.scopePages.end}</div>}
+        </div>
+      )}
+
+      {action.action === 'delete_campaign' && (
+        <div className="text-red/80 text-[11px]">Campaign ID: {(action as { campaignId: string }).campaignId}</div>
       )}
 
       {status === 'pending' && (
@@ -154,7 +176,8 @@ export default function AdminChat() {
   const [directoryMode, setDirectoryModeState] = useState(
     () => localStorage.getItem(DIR_MODE_KEY) === 'true'
   );
-  const [resources, setResources]       = useState<ResourceEntry[]>([]);
+  const [resources, setResources]   = useState<ResourceEntry[]>([]);
+  const [campaigns, setCampaigns]   = useState<Campaign[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -162,10 +185,22 @@ export default function AdminChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Subscribe to resource directory when Dir mode is on
+  // Subscribe to resource directory + all campaigns when Dir mode is on
   useEffect(() => {
-    if (!directoryMode) { setResources([]); return; }
-    return resourceDirectory.subscribeResources(setResources);
+    if (!directoryMode) { setResources([]); setCampaigns([]); return; }
+    const unsubRes = resourceDirectory.subscribeResources(setResources);
+    // Load all campaigns (across all profiles) for context
+    const loadCampaigns = async () => {
+      const profiles = ['asma', 'aflah', 'haidar'];
+      const all: Campaign[] = [];
+      for (const pid of profiles) {
+        const cs = await campaignStorage.getCampaignsByProfile(pid);
+        all.push(...cs.filter((c) => c.status === 'active'));
+      }
+      setCampaigns(all);
+    };
+    loadCampaigns();
+    return unsubRes;
   }, [directoryMode]);
 
   function setAiRoute(next: AiRoute) {
@@ -192,10 +227,18 @@ export default function AdminChat() {
     );
   }
 
-  async function handleExecuteAction(msgIdx: number, actionIdx: number, action: DirectoryAction) {
+  async function handleExecuteAction(msgIdx: number, actionIdx: number, action: AnyAction) {
     updateAction(msgIdx, actionIdx, { status: 'executing' });
     try {
-      const result = await executeDirectoryAction(action, user?.uid ?? 'admin');
+      let result: string;
+      if (action.action === 'create_campaign' || action.action === 'delete_campaign') {
+        const resource = action.action === 'create_campaign' && action.resourceId
+          ? resources.find((r) => r.resourceId === action.resourceId)
+          : undefined;
+        result = await executeCampaignAction(action, resource);
+      } else {
+        result = await executeDirectoryAction(action as DirectoryAction, user?.uid ?? 'admin');
+      }
       updateAction(msgIdx, actionIdx, { status: 'done', result });
     } catch (err) {
       updateAction(msgIdx, actionIdx, {
@@ -215,12 +258,14 @@ export default function AdminChat() {
     setInput('');
     setLoading(true);
 
-    // Build system context: base prompt + optional directory context
+    // Build system context: base prompt + optional directory + campaign context
     const systemParts: string[] = [];
     if (systemPrompt.trim()) systemParts.push(systemPrompt.trim());
     if (directoryMode) {
       systemParts.push(DIRECTORY_SYSTEM_PROMPT);
       systemParts.push(buildDirectoryContext(resources));
+      systemParts.push(CAMPAIGN_SYSTEM_PROMPT);
+      systemParts.push(buildCampaignContext(campaigns));
     }
 
     const apiMessages: AIChatMessage[] = [
@@ -247,12 +292,14 @@ export default function AdminChat() {
         });
 
         const responseText = result.text ?? '';
-        const actions = directoryMode ? parseDirectoryActions(responseText) : [];
+        const actions: AnyAction[] = directoryMode
+          ? [...parseDirectoryActions(responseText), ...parseCampaignActions(responseText)]
+          : [];
         setMessages([...history, {
           role: 'assistant',
           content: responseText,
           latencyMs: Date.now() - startTime,
-          actions: actions.map((a) => ({ action: a, status: 'pending' })),
+          actions: actions.map((a) => ({ action: a, status: 'pending' as ActionStatus })),
         }]);
         return;
       }
@@ -282,13 +329,15 @@ export default function AdminChat() {
         }]);
       } else {
         const responseText = data.text ?? '';
-        const actions = directoryMode ? parseDirectoryActions(responseText) : [];
+        const actions: AnyAction[] = directoryMode
+          ? [...parseDirectoryActions(responseText), ...parseCampaignActions(responseText)]
+          : [];
         setMessages([...history, {
           role: 'assistant',
           content: responseText,
           tokens: data.tokens,
           latencyMs,
-          actions: actions.map((a) => ({ action: a, status: 'pending' })),
+          actions: actions.map((a) => ({ action: a, status: 'pending' as ActionStatus })),
         }]);
       }
     } catch (err) {
@@ -369,7 +418,7 @@ export default function AdminChat() {
               : 'bg-surface border-border text-text-2'
           }`}
         >
-          Dir {directoryMode ? `(${resources.length})` : ''}
+          Dir {directoryMode ? `(${resources.length}r ${campaigns.length}c)` : ''}
         </button>
 
         {messages.length > 0 && (
@@ -395,7 +444,8 @@ export default function AdminChat() {
       )}
       {directoryMode && (
         <div className="mb-3 rounded-xl border border-green/30 bg-green/10 px-3 py-2 text-xs text-text-2">
-          Directory mode — AI can add, edit, and delete resources. Actions require your confirmation before executing.
+          Directory mode — AI can manage resources and create/delete campaigns. All actions require your confirmation.
+          {campaigns.length > 0 && ` ${campaigns.length} active campaign(s) loaded.`}
         </div>
       )}
 
@@ -437,10 +487,10 @@ export default function AdminChat() {
                 ? 'bg-red/10 border border-red/30 text-red rounded-bl-sm'
                 : 'bg-surface border border-border text-text rounded-bl-sm'
             }`}>
-              {/* Strip action fences from display text */}
+              {/* Strip all action fences from display text */}
               <p className="whitespace-pre-wrap leading-relaxed">
                 {msg.role === 'assistant' && msg.actions?.length
-                  ? stripActionFences(msg.content)
+                  ? stripCampaignFences(stripActionFences(msg.content))
                   : msg.content}
               </p>
 

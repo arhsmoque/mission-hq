@@ -118,6 +118,13 @@ export default function Dashboard() {
           )}
 
           <button
+            onClick={() => navigate('/today')}
+            className="w-full rounded-2xl bg-primary px-6 py-5 font-bold text-white shadow-lg active:scale-[0.98] text-lg"
+          >
+            📅 Today's Plan
+          </button>
+
+          <button
             onClick={() => navigate('/new-mission')}
             className="w-full rounded-2xl bg-accent px-6 py-4 font-bold text-white shadow-lg active:scale-[0.98]"
           >

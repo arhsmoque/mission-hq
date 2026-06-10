@@ -14,6 +14,7 @@
 
 import { resourceDirectory } from '@/adapters';
 import { aiAdapter } from '@/adapters';
+import { writePageNodes } from '@/adapters/storage/firebase-resources-adapter';
 import type { ResourceEntry } from '@/types';
 import { detectSource } from './sourceDetector';
 
@@ -104,14 +105,17 @@ export async function extractResource(
     onProgress?.({ phase: 'generating_toc', pagesFound: pageCount, pagesProcessed: pageCount });
     const toc = await generateToc(fullText, resource.label);
 
-    // Phase 4: Save everything
+    // Phase 4: Save everything (fullText blob + per-page nodes in parallel)
     onProgress?.({ phase: 'saving', pagesFound: pageCount, pagesProcessed: pageCount });
-    await resourceDirectory.updateResource(resource.resourceId, {
-      status:      'ready',
-      extractedAt: Date.now(),
-      pageCount,
-      extractedContent: { fullText, toc },
-    } as Partial<ResourceEntry>);
+    await Promise.all([
+      resourceDirectory.updateResource(resource.resourceId, {
+        status:      'ready',
+        extractedAt: Date.now(),
+        pageCount,
+        extractedContent: { fullText, toc },
+      } as Partial<ResourceEntry>),
+      writePageNodes(resource.resourceId, fullText),
+    ]);
 
   } catch (err) {
     await resourceDirectory.updateResource(resource.resourceId, {

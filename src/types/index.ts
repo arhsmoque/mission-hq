@@ -257,3 +257,88 @@ export interface MethodEffectiveness {
   unaidedCompletionRate: number;
   lastUpdated: number;
 }
+
+// ── Campaign (parent-created learning objectives with deadline + scope) ────
+
+export type CampaignType = 'homework' | 'exam_prep' | 'practice';
+
+export type SessionActivityType = 'review' | 'practice' | 'quiz';
+
+export type SessionStatus = 'pending' | 'done' | 'skipped';
+
+export interface CampaignScope {
+  sectionId: string;    // derived from TOC index
+  title: string;
+  pageStart: number;
+  pageEnd: number;
+}
+
+export interface CampaignSession {
+  sessionIdx: number;
+  sectionId: string;
+  sectionTitle: string;
+  pageStart: number;
+  pageEnd: number;
+  targetDate: number;                  // epoch ms — scheduled day for this session
+  activityTypes: SessionActivityType[];
+  status: SessionStatus;
+  completedAt?: number;
+  score?: number;                      // 0–100 for quiz/practice sessions
+  xpEarned?: number;
+}
+
+export interface Campaign {
+  campaignId: string;
+  profileId: string;
+  type: CampaignType;
+  label: string;
+  deadline: number;                    // epoch ms
+  resourceId?: string;
+  resourceLabel?: string;              // denormalized label for display
+  subject?: Subject;
+  scopeSections: CampaignScope[];
+  sessions: CampaignSession[];
+  sessionsTotal: number;
+  sessionsDone: number;
+  status: 'active' | 'completed' | 'archived';
+  createdAt: number;
+}
+
+// ── Daily agenda (computed view across active campaigns) ──────────────────
+
+export interface AgendaItem {
+  campaign: Campaign;
+  session: CampaignSession;
+  isOverdue: boolean;
+}
+
+export interface DailyAgenda {
+  profileId: string;
+  date: string;                        // YYYY-MM-DD
+  items: AgendaItem[];                 // today's work
+  upcomingItems: AgendaItem[];         // next 2 days preview
+}
+
+// ── Session content cache (AI-generated review/questions, stored once) ────
+
+export interface PracticeQuestion {
+  question: string;
+  answer: string;
+  hint: string;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correct: number;
+  explanation: string;
+}
+
+export interface SessionContent {
+  campaignId: string;
+  sessionIdx: number;
+  reviewMarkdown?: string;
+  questions?: PracticeQuestion[];
+  quiz?: QuizQuestion[];
+  generatedAt: number;
+}

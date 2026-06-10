@@ -20,6 +20,9 @@ import type {
   AnalyticsSession,
   MethodEffectiveness,
   ResourceEntry,
+  Campaign,
+  CampaignSession,
+  SessionContent,
 } from '@/types';
 
 export interface MethodRegistryPort {
@@ -44,6 +47,20 @@ export interface ResourceDirectoryPort {
   deleteResource(resourceId: string): Promise<void>;
   subscribeResources(onChange: (resources: ResourceEntry[]) => void): () => void;
   getResourcesByYear(yearLevel: number): Promise<ResourceEntry[]>;
+}
+
+export interface CampaignStoragePort {
+  createCampaign(campaign: Campaign): Promise<void>;
+  updateCampaign(campaignId: string, patch: Partial<Campaign>): Promise<void>;
+  updateSession(campaignId: string, sessionIdx: number, patch: Partial<CampaignSession>): Promise<void>;
+  deleteCampaign(campaignId: string): Promise<void>;
+  subscribeActiveCampaigns(profileId: string, onChange: (campaigns: Campaign[]) => void): () => void;
+  getCampaignsByProfile(profileId: string): Promise<Campaign[]>;
+}
+
+export interface SessionContentPort {
+  getSessionContent(campaignId: string, sessionIdx: number): Promise<SessionContent | null>;
+  saveSessionContent(content: SessionContent): Promise<void>;
 }
 
 export interface AnalyticsPort {
