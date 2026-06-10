@@ -53,9 +53,17 @@ export interface ExtractionProgress {
   pagesProcessed?: number;
 }
 
+/** Probe a resource's page count without extracting. Returns 0 if unreachable. */
+export async function probeResource(resource: ResourceEntry): Promise<number> {
+  const source = detectSource(resource.url);
+  if (!source.pageImageTemplate) return 0;
+  return probePageCount(source.pageImageTemplate);
+}
+
 export async function extractResource(
   resource: ResourceEntry,
   onProgress?: (p: ExtractionProgress) => void,
+  maxPages?: number,
 ): Promise<void> {
   const source = detectSource(resource.url);
 
@@ -72,19 +80,21 @@ export async function extractResource(
     // Phase 1: Probe page count
     onProgress?.({ phase: 'probing' });
     const pageCount = await probePageCount(source.pageImageTemplate);
-    if (pageCount === 0) throw new Error('No pages found — the book URL may be private or the page image path pattern differs. Try opening the book and checking the network tab for the correct image URL.');
+    if (pageCount === 0) throw new Error('No pages found — the book may be private, or AnyFlip changed their URL structure. Open the book in browser and check the image URL in DevTools → Network tab.');
+
+    const effectiveCount = maxPages ? Math.min(pageCount, maxPages) : pageCount;
 
     await resourceDirectory.updateResource(resource.resourceId, { pageCount });
-    onProgress?.({ phase: 'extracting', pagesFound: pageCount, pagesProcessed: 0 });
+    onProgress?.({ phase: 'extracting', pagesFound: effectiveCount, pagesProcessed: 0 });
 
     // Phase 2: Extract pages in batches
     const allText: string[] = [];
-    for (let start = 1; start <= pageCount; start += BATCH_SIZE) {
-      const end      = Math.min(start + BATCH_SIZE - 1, pageCount);
+    for (let start = 1; start <= effectiveCount; start += BATCH_SIZE) {
+      const end      = Math.min(start + BATCH_SIZE - 1, effectiveCount);
       const pageNums = Array.from({ length: end - start + 1 }, (_, i) => start + i);
       const batchText = await extractBatch(source.pageImageTemplate, pageNums);
       if (batchText) allText.push(batchText);
-      onProgress?.({ phase: 'extracting', pagesFound: pageCount, pagesProcessed: end });
+      onProgress?.({ phase: 'extracting', pagesFound: effectiveCount, pagesProcessed: end });
     }
 
     const fullText = allText.join('\n\n');

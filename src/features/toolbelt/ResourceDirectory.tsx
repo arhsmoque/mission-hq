@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { resourceDirectory } from '@/adapters';
 import { useRootStore } from '@/stores/rootStore';
 import { detectSource } from '@/lib/sourceDetector';
-import { extractResource, type ExtractionProgress } from '@/lib/resourceExtractor';
+import { extractResource, probeResource, type ExtractionProgress } from '@/lib/resourceExtractor';
 import { generateLesson, type LessonGenerationProgress } from '@/lib/lessonGenerator';
 import { SUBJECTS, SUBJECT_LABELS, SCHOOL_TYPE_LABELS } from '@/types';
 import type { ResourceEntry, SchoolType, Subject } from '@/types';
@@ -40,9 +40,14 @@ export default function ResourceDirectory() {
   const [saving, setSaving] = useState(false);
   const [filterYear, setFilterYear] = useState<number | 'all'>('all');
   const [error, setError] = useState('');
-  const [extracting,  setExtracting]  = useState<Record<string, ExtractionProgress>>({});
-  const [generating,  setGenerating]  = useState<Record<string, LessonGenerationProgress>>({});
-  const [genProfile,  setGenProfile]  = useState<Record<string, string>>({}); // resourceId → profileId
+  const [extracting,    setExtracting]    = useState<Record<string, ExtractionProgress>>({});
+  const [extractErrors, setExtractErrors] = useState<Record<string, string>>({});
+  // Two-phase extraction: probe → confirm
+  const [probing,       setProbing]       = useState<Record<string, boolean>>({});
+  const [probedCount,   setProbedCount]   = useState<Record<string, number>>({});     // resourceId → found pages
+  const [pageLimit,     setPageLimit]     = useState<Record<string, number | 'all'>>({});
+  const [generating,    setGenerating]    = useState<Record<string, LessonGenerationProgress>>({});
+  const [genProfile,    setGenProfile]    = useState<Record<string, string>>({}); // resourceId → profileId
 
   useEffect(() => {
     return resourceDirectory.subscribeResources(setResources);
@@ -84,21 +89,50 @@ export default function ResourceDirectory() {
     await resourceDirectory.deleteResource(resourceId);
   }
 
+  // Phase 1: probe page count, show confirmation panel
+  async function handleProbe(resource: ResourceEntry) {
+    const id = resource.resourceId;
+    setProbing((prev) => ({ ...prev, [id]: true }));
+    setExtractErrors((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    try {
+      const count = await probeResource(resource);
+      if (count === 0) {
+        setExtractErrors((prev) => ({ ...prev, [id]: 'Could not find any pages. The book may be private, or the URL format changed. Try opening the book in your browser first.' }));
+      } else {
+        setProbedCount((prev) => ({ ...prev, [id]: count }));
+        setPageLimit((prev) => ({ ...prev, [id]: 'all' }));
+      }
+    } catch (e) {
+      setExtractErrors((prev) => ({ ...prev, [id]: String(e) }));
+    } finally {
+      setProbing((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    }
+  }
+
+  // Phase 2: run actual extraction with the chosen limit
   async function handleExtract(resource: ResourceEntry) {
-    setExtracting((prev) => ({ ...prev, [resource.resourceId]: { phase: 'probing' } }));
+    const id    = resource.resourceId;
+    const limit = pageLimit[id];
+    const maxPg = typeof limit === 'number' ? limit : undefined;
+
+    setProbedCount((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setExtractErrors((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setExtracting((prev) => ({ ...prev, [id]: { phase: 'probing' } }));
     try {
       await extractResource(resource, (p) =>
-        setExtracting((prev) => ({ ...prev, [resource.resourceId]: p })),
+        setExtracting((prev) => ({ ...prev, [id]: p })),
+        maxPg,
       );
-    } catch {
-      // error stored to Firebase by extractResource; clear local progress state
+    } catch (e) {
+      setExtractErrors((prev) => ({ ...prev, [id]: String(e) }));
     } finally {
-      setExtracting((prev) => {
-        const next = { ...prev };
-        delete next[resource.resourceId];
-        return next;
-      });
+      setExtracting((prev) => { const n = { ...prev }; delete n[id]; return n; });
     }
+  }
+
+  function cancelProbe(id: string) {
+    setProbedCount((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setExtractErrors((prev) => { const n = { ...prev }; delete n[id]; return n; });
   }
 
   function progressLabel(p: ExtractionProgress): string {
@@ -341,16 +375,97 @@ export default function ResourceDirectory() {
                       >
                         Open ↗
                       </a>
-                      {(r.status === 'pending' || r.status === 'error') && !extracting[r.resourceId] && r.sourceType !== 'website' && (
+                      {/* Phase 1 trigger — only when not probing/extracting */}
+                      {(r.status === 'pending' || r.status === 'error') &&
+                        !extracting[r.resourceId] &&
+                        !probedCount[r.resourceId] &&
+                        !probing[r.resourceId] &&
+                        r.sourceType !== 'website' && (
                         <button
-                          onClick={() => handleExtract(r)}
+                          onClick={() => handleProbe(r)}
                           className="text-xs text-accent border border-accent/40 rounded-lg px-2 py-0.5 hover:bg-accent/10 transition-colors"
                           style={{ minHeight: 'unset', minWidth: 'unset' }}
                         >
                           Extract
                         </button>
                       )}
+                      {probing[r.resourceId] && (
+                        <span className="text-xs text-text-3">Checking pages…</span>
+                      )}
                     </div>
+
+                    {/* Local extraction error */}
+                    {extractErrors[r.resourceId] && (
+                      <div className="mt-1.5 rounded-lg bg-red/10 border border-red/30 px-2 py-1.5 text-xs text-red">
+                        {extractErrors[r.resourceId]}
+                        <button
+                          onClick={() => cancelProbe(r.resourceId)}
+                          className="ml-2 underline"
+                          style={{ minHeight: 'unset', minWidth: 'unset' }}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Phase 2 — page limit confirmation panel */}
+                    {probedCount[r.resourceId] != null && !extracting[r.resourceId] && (
+                      <div className="mt-2 rounded-xl bg-accent/5 border border-accent/20 p-3 space-y-2 text-xs">
+                        <p className="font-semibold text-text">
+                          Found {probedCount[r.resourceId]} pages
+                          {' · '}
+                          <span className="text-text-3 font-normal">
+                            ~{Math.ceil((typeof pageLimit[r.resourceId] === 'number' ? pageLimit[r.resourceId] as number : probedCount[r.resourceId]) / 8)} AI calls
+                          </span>
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-text-2">Extract up to:</span>
+                          {[20, 40, 60, 100].map((n) => (
+                            n <= probedCount[r.resourceId] ? (
+                              <button
+                                key={n}
+                                onClick={() => setPageLimit((prev) => ({ ...prev, [r.resourceId]: n }))}
+                                className={`rounded-lg px-2 py-0.5 border transition-colors ${
+                                  pageLimit[r.resourceId] === n
+                                    ? 'bg-accent text-bg border-accent'
+                                    : 'border-border text-text-2 hover:border-accent'
+                                }`}
+                                style={{ minHeight: 'unset', minWidth: 'unset' }}
+                              >
+                                {n}
+                              </button>
+                            ) : null
+                          ))}
+                          <button
+                            onClick={() => setPageLimit((prev) => ({ ...prev, [r.resourceId]: 'all' }))}
+                            className={`rounded-lg px-2 py-0.5 border transition-colors ${
+                              pageLimit[r.resourceId] === 'all'
+                                ? 'bg-accent text-bg border-accent'
+                                : 'border-border text-text-2 hover:border-accent'
+                            }`}
+                            style={{ minHeight: 'unset', minWidth: 'unset' }}
+                          >
+                            All {probedCount[r.resourceId]}
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleExtract(r)}
+                            className="rounded-xl bg-accent text-bg px-3 py-1.5 font-semibold text-xs active:scale-95 transition-all"
+                            style={{ minHeight: 'unset', minWidth: 'unset' }}
+                          >
+                            Start Extraction
+                          </button>
+                          <button
+                            onClick={() => cancelProbe(r.resourceId)}
+                            className="rounded-xl border border-border text-text-2 px-3 py-1.5 text-xs hover:text-text transition-colors"
+                            style={{ minHeight: 'unset', minWidth: 'unset' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {r.status === 'ready' && r.extractedContent?.toc && r.extractedContent.toc.length > 0 && (
                       <details className="mt-2">
                         <summary className="text-xs text-text-3 cursor-pointer hover:text-text-2">

@@ -174,8 +174,23 @@ async function handleProxyImage(request: Request): Promise<Response> {
     return json({ error: 'Domain not allowed' }, 403);
   }
 
+  // Derive a same-origin Referer from the image URL so CDN hotlink protection passes.
+  // AnyFlip and FlipHTML5 reject requests without a matching Referer.
+  let referer = '';
+  try {
+    const u = new URL(imageUrl);
+    // Use the book root — e.g. https://online.anyflip.com/xvurt/nkll/
+    const parts = u.pathname.replace(/^\/+|\/+$/g, '').split('/');
+    const bookRoot = parts.length >= 2 ? `${u.origin}/${parts[0]}/${parts[1]}/` : u.origin + '/';
+    referer = bookRoot;
+  } catch { referer = ''; }
+
   const res = await fetch(imageUrl, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MissionHQ/1.0)' },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Referer':    referer,
+      'Accept':     'image/webp,image/apng,image/*,*/*;q=0.8',
+    },
   });
 
   if (!res.ok) return json({ found: false }, res.status);
