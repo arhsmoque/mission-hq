@@ -4,6 +4,7 @@ import { useRootStore } from '@/stores/rootStore';
 import PinGate from './PinGate';
 import AdminChat from './AdminChat';
 import ModelPicker from './ModelPicker';
+import OpenRouterPanel from './OpenRouterPanel';
 import ResourceDirectory from './ResourceDirectory';
 import LocalCompanionStatusPanel from './LocalCompanionStatusPanel';
 
@@ -76,10 +77,12 @@ export default function AdminPanel() {
 
           <section className="rounded-2xl bg-bg-2 p-4 border border-border">
             <h3 className="text-sm font-semibold text-text-2 mb-3">
-              Child AI Brain
+              Child AI Brain (Gemini Direct)
             </h3>
             <ModelPicker />
           </section>
+
+          <OpenRouterPanel />
 
           <section className="rounded-2xl bg-bg-2 p-4 border border-border">
             <h3 className="text-sm font-semibold text-text-2 mb-3">

@@ -4,11 +4,35 @@ import type { ProfileId } from '@/features/profile/profiles';
 import type { AuthUser } from '@/types';
 
 function validModel(id: string | undefined): string {
-  return AVAILABLE_MODELS.some((m) => m.id === id) ? id! : DEFAULT_MODEL_ID;
+  if (!id) return DEFAULT_MODEL_ID;
+  // OR model IDs contain '/' — always valid
+  if (id.includes('/')) return id;
+  return AVAILABLE_MODELS.some((m) => m.id === id) ? id : DEFAULT_MODEL_ID;
 }
 
-const ADMIN_MODEL_KEY = 'mhq_admin_model';
+export interface ErrorEntry {
+  id: string;
+  ts: string;
+  source: 'chat' | 'ocr' | 'balance' | 'models';
+  model: string;
+  message: string;
+  status?: number;
+  latencyMs?: number;
+}
+
+export interface TokenUsage {
+  prompt: number;
+  completion: number;
+  total: number;
+}
+
+const ADMIN_MODEL_KEY     = 'mhq_admin_model';
 const DEFAULT_ADMIN_MODEL = 'gemini-2.5-pro';
+
+const AI_PROVIDER_KEY           = 'mhq_ai_provider';
+const OR_MODEL_KEY              = 'mhq_or_model';
+const DEFAULT_OR_MODEL          = 'google/gemini-2.5-flash';
+const MAX_ERROR_LOG             = 50;
 
 interface StoredPrefs {
   earnedBadges: string[];
@@ -78,11 +102,23 @@ interface AdminSlice {
   setAdminModel: (model: string) => void;
 }
 
+interface OpenRouterSlice {
+  aiProvider: 'gemini' | 'openrouter';
+  setAiProvider: (p: 'gemini' | 'openrouter') => void;
+  openrouterModel: string;
+  setOpenrouterModel: (m: string) => void;
+  lastTokenUsage: TokenUsage | null;
+  setLastTokenUsage: (u: TokenUsage) => void;
+  errorLog: ErrorEntry[];
+  pushError: (e: ErrorEntry) => void;
+  clearErrorLog: () => void;
+}
+
 const _initProfileId = localStorage.getItem('mission_room_profile') as ProfileId | null;
 const _initPrefs = _initProfileId ? loadPrefs(_initProfileId) : {};
 
 export const useRootStore = create<
-  AuthSlice & MissionUISlice & ToolbeltSlice & GamificationSlice & ProfileSlice & AdminSlice
+  AuthSlice & MissionUISlice & ToolbeltSlice & GamificationSlice & ProfileSlice & AdminSlice & OpenRouterSlice
 >((set, get) => ({
   user: null,
   authReady: false,
@@ -153,4 +189,22 @@ export const useRootStore = create<
     localStorage.setItem(ADMIN_MODEL_KEY, model);
     set({ adminModel: model });
   },
+
+  aiProvider: (localStorage.getItem(AI_PROVIDER_KEY) as 'gemini' | 'openrouter') ?? 'gemini',
+  setAiProvider: (p) => {
+    localStorage.setItem(AI_PROVIDER_KEY, p);
+    set({ aiProvider: p });
+  },
+  openrouterModel: localStorage.getItem(OR_MODEL_KEY) ?? DEFAULT_OR_MODEL,
+  setOpenrouterModel: (m) => {
+    localStorage.setItem(OR_MODEL_KEY, m);
+    set({ openrouterModel: m });
+  },
+  lastTokenUsage: null,
+  setLastTokenUsage: (u) => set({ lastTokenUsage: u }),
+  errorLog: [],
+  pushError: (e) => set((s) => ({
+    errorLog: [e, ...s.errorLog].slice(0, MAX_ERROR_LOG),
+  })),
+  clearErrorLog: () => set({ errorLog: [] }),
 }));

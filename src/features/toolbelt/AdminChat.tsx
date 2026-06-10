@@ -12,7 +12,7 @@ interface Message {
   error?: boolean;
 }
 
-type AiRoute = 'api' | 'local_companion';
+type AiRoute = 'api' | 'openrouter' | 'local_companion';
 
 const ADMIN_DEFAULT_SYSTEM = `You are a curriculum design assistant for a primary school learning app called Mission HQ.
 You help the admin (a parent/teacher) design teaching methods, improve lesson prompts, generate content structures, and review pedagogical approaches.
@@ -22,13 +22,16 @@ const AI_ROUTE_KEY = 'mhq_admin_ai_route';
 
 function loadAiRoute(): AiRoute {
   const saved = localStorage.getItem(AI_ROUTE_KEY);
-  return saved === 'local_companion' ? 'local_companion' : 'api';
+  if (saved === 'local_companion') return 'local_companion';
+  if (saved === 'openrouter')      return 'openrouter';
+  return 'api';
 }
 
 export default function AdminChat() {
-  const user          = useRootStore((s) => s.user);
-  const adminModel    = useRootStore((s) => s.adminModel);
-  const setAdminModel = useRootStore((s) => s.setAdminModel);
+  const user               = useRootStore((s) => s.user);
+  const adminModel         = useRootStore((s) => s.adminModel);
+  const setAdminModel      = useRootStore((s) => s.setAdminModel);
+  const openrouterModel    = useRootStore((s) => s.openrouterModel);
 
   const [messages, setMessages]         = useState<Message[]>([]);
   const [input, setInput]               = useState('');
@@ -90,10 +93,13 @@ export default function AdminChat() {
         return;
       }
 
-      const res = await fetch('/api/ai/chat', {
+      const endpoint = aiRoute === 'openrouter' ? '/api/openrouter/chat' : '/api/ai/chat';
+      const model    = aiRoute === 'openrouter' ? openrouterModel : adminModel;
+
+      const res = await fetch(endpoint, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ messages: apiMessages, model: adminModel, temperature }),
+        body:    JSON.stringify({ messages: apiMessages, model, temperature }),
       });
 
       const latencyMs = Date.now() - startTime;
@@ -156,9 +162,10 @@ export default function AdminChat() {
           value={aiRoute}
           onChange={(e) => setAiRoute(e.target.value as AiRoute)}
           className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text focus:border-accent focus:outline-none"
-          title="Choose whether this admin chat uses the deployed Gemini API Worker or your desktop Gemini CLI companion."
+          title="Choose AI route for admin chat"
         >
           <option value="api">Gemini API</option>
+          <option value="openrouter">OpenRouter</option>
           <option value="local_companion">Local CLI</option>
         </select>
 
@@ -196,6 +203,11 @@ export default function AdminChat() {
         )}
       </div>
 
+      {aiRoute === 'openrouter' && (
+        <div className="mb-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-2">
+          OpenRouter mode — using <code className="font-mono">{openrouterModel}</code>. Configure in Settings → OpenRouter.
+        </div>
+      )}
       {aiRoute === 'local_companion' && (
         <div className="mb-3 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-2">
           Local CLI mode writes this chat as a Firebase job. Keep <code>npm run companion:gemini</code> running on your desktop.
@@ -219,7 +231,11 @@ export default function AdminChat() {
         {messages.length === 0 && (
           <div className="text-center text-sm text-text-3 pt-8">
             <p className="text-2xl mb-2">⚡</p>
-            <p>{aiRoute === 'local_companion' ? 'Desktop Gemini CLI companion mode.' : 'Direct line to Gemini — no filters.'}</p>
+            <p>{
+              aiRoute === 'local_companion' ? 'Desktop Gemini CLI companion mode.' :
+              aiRoute === 'openrouter'      ? `OpenRouter — ${openrouterModel}` :
+              'Direct line to Gemini — no filters.'
+            }</p>
             <p className="mt-1 text-xs">⌘↵ or Ctrl↵ to send</p>
           </div>
         )}
@@ -246,6 +262,7 @@ export default function AdminChat() {
                     </span>
                   )}
                   {aiRoute === 'local_companion' && <span>local CLI</span>}
+                  {aiRoute === 'openrouter' && <span>OpenRouter</span>}
                 </div>
               )}
             </div>
@@ -277,7 +294,11 @@ export default function AdminChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder={aiRoute === 'local_companion' ? 'Queue a job for your desktop Gemini CLI…' : 'Ask Gemini anything…'}
+          placeholder={
+            aiRoute === 'local_companion' ? 'Queue a job for your desktop Gemini CLI…' :
+            aiRoute === 'openrouter'      ? `Ask via OpenRouter (${openrouterModel})…` :
+            'Ask Gemini anything…'
+          }
           rows={2}
           disabled={loading}
           className="flex-1 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text placeholder-text-3 focus:border-accent focus:outline-none resize-none disabled:opacity-50"

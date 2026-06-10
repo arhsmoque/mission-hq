@@ -2,14 +2,19 @@
  * Cloudflare Worker — AI proxy for Mission Room
  *
  * Routes:
- *   POST /api/ai/chat           — text generation
- *   POST /api/ai/ocr            — vision / image text extraction
- *   POST /api/ai/extract-pages  — batch vision: multiple page images → text
+ *   POST /api/ai/chat                      — Gemini text generation
+ *   POST /api/ai/ocr                       — Gemini vision / image text extraction
+ *   POST /api/ai/extract-pages             — Gemini batch vision: multiple page images → text
+ *   POST /api/openrouter/chat              — OpenRouter text generation
+ *   POST /api/openrouter/ocr               — OpenRouter vision / image text extraction
+ *   GET  /api/openrouter/models            — OpenRouter model list (proxied)
+ *   GET  /api/openrouter/balance           — OpenRouter credit balance
  *   GET  /api/resource/proxy-image?url=... — CORS-safe image proxy (AnyFlip, FlipHTML5)
- *   *                           — serve SPA static assets
+ *   *                                      — serve SPA static assets
  *
- * Required Cloudflare secret (set via `wrangler secret put GEMINI_API_KEY`):
- *   GEMINI_API_KEY — from https://aistudio.google.com/apikey (your Google account)
+ * Required Cloudflare secrets:
+ *   GEMINI_API_KEY     — from https://aistudio.google.com/apikey
+ *   OPENROUTER_API_KEY — from https://openrouter.ai/keys (sk-or-v1-...)
  */
 
 interface Fetcher {
@@ -19,6 +24,7 @@ interface Fetcher {
 export interface Env {
   ASSETS: Fetcher;
   GEMINI_API_KEY: string;
+  OPENROUTER_API_KEY: string;
 }
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -225,6 +231,151 @@ async function handleExtractPages(request: Request, env: Env): Promise<Response>
   });
 }
 
+// ── OpenRouter handlers ────────────────────────────────────────────────────
+
+const OR_BASE = 'https://openrouter.ai/api/v1';
+const OR_HEADERS_STATIC = {
+  'HTTP-Referer': 'https://mission-hq.arh-homelab.workers.dev',
+  'X-Title':      'Mission HQ',
+};
+
+async function handleOrChat(request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) {
+    return json({ error: 'OPENROUTER_API_KEY secret not configured. Run: wrangler secret put OPENROUTER_API_KEY' }, 500);
+  }
+
+  const { messages, model, temperature = 0.7 } = await request.json() as {
+    messages:     Array<{ role: string; content: string }>;
+    model:        string;
+    temperature?: number;
+  };
+
+  const orBody = {
+    model,
+    messages,
+    temperature,
+  };
+
+  const res = await fetch(`${OR_BASE}/chat/completions`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+      ...OR_HEADERS_STATIC,
+    },
+    body: JSON.stringify(orBody),
+  });
+
+  if (!res.ok) {
+    return json({ error: await res.text() }, res.status);
+  }
+
+  const data = await res.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+    usage?:   { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    error?:   { message?: string };
+  };
+
+  if (data.error?.message) return json({ error: data.error.message }, 500);
+
+  const text  = data.choices?.[0]?.message?.content ?? '';
+  const usage = data.usage;
+  return json({
+    text,
+    tokens: usage ? {
+      prompt:     usage.prompt_tokens     ?? 0,
+      completion: usage.completion_tokens ?? 0,
+      total:      usage.total_tokens      ?? 0,
+    } : undefined,
+  });
+}
+
+const OCR_TEXT_PROMPT =
+  'Extract ALL text from this image exactly as written. ' +
+  'The content may include English, Malay (Bahasa Malaysia), and/or Chinese (简体字/繁體字). ' +
+  'Preserve structure, line breaks, numbering, and math expressions. ' +
+  'Output the extracted text only — no commentary, no markdown formatting.';
+
+async function handleOrOcr(request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) {
+    return json({ error: 'OPENROUTER_API_KEY secret not configured.' }, 500);
+  }
+
+  const { imageBase64, mimeType, model } = await request.json() as {
+    imageBase64: string;
+    mimeType:    string;
+    model:       string;
+  };
+
+  const orBody = {
+    model,
+    messages: [{
+      role:    'user',
+      content: [
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+        { type: 'text', text: OCR_TEXT_PROMPT },
+      ],
+    }],
+    temperature: 0,
+  };
+
+  const res = await fetch(`${OR_BASE}/chat/completions`, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+      ...OR_HEADERS_STATIC,
+    },
+    body: JSON.stringify(orBody),
+  });
+
+  if (!res.ok) return json({ error: await res.text() }, res.status);
+
+  const data = await res.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+    error?:   { message?: string };
+  };
+
+  if (data.error?.message) return json({ error: data.error.message }, 500);
+
+  const text = data.choices?.[0]?.message?.content ?? '';
+  return json({ text: text.trim(), confidence: 95, engine: 'vision_llm' });
+}
+
+async function handleOrModels(_request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) {
+    return json({ error: 'OPENROUTER_API_KEY not configured.' }, 500);
+  }
+
+  const res = await fetch(`${OR_BASE}/models`, {
+    headers: {
+      'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+      ...OR_HEADERS_STATIC,
+    },
+  });
+
+  if (!res.ok) return json({ error: await res.text() }, res.status);
+  const data = await res.json();
+  return json(data);
+}
+
+async function handleOrBalance(_request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) {
+    return json({ error: 'OPENROUTER_API_KEY not configured.' }, 500);
+  }
+
+  const res = await fetch(`${OR_BASE}/auth/key`, {
+    headers: {
+      'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+      ...OR_HEADERS_STATIC,
+    },
+  });
+
+  if (!res.ok) return json({ error: await res.text() }, res.status);
+  const data = await res.json();
+  return json(data);
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────
 
 export default {
@@ -233,12 +384,16 @@ export default {
 
     try {
       if (request.method === 'POST') {
-        if (pathname === '/api/ai/chat')          return await handleChat(request, env);
-        if (pathname === '/api/ai/ocr')           return await handleOcr(request, env);
-        if (pathname === '/api/ai/extract-pages') return await handleExtractPages(request, env);
+        if (pathname === '/api/ai/chat')              return await handleChat(request, env);
+        if (pathname === '/api/ai/ocr')               return await handleOcr(request, env);
+        if (pathname === '/api/ai/extract-pages')     return await handleExtractPages(request, env);
+        if (pathname === '/api/openrouter/chat')      return await handleOrChat(request, env);
+        if (pathname === '/api/openrouter/ocr')       return await handleOrOcr(request, env);
       }
-      if (request.method === 'GET' && pathname === '/api/resource/proxy-image') {
-        return await handleProxyImage(request);
+      if (request.method === 'GET') {
+        if (pathname === '/api/resource/proxy-image') return await handleProxyImage(request);
+        if (pathname === '/api/openrouter/models')    return await handleOrModels(request, env);
+        if (pathname === '/api/openrouter/balance')   return await handleOrBalance(request, env);
       }
     } catch (err) {
       return json({ error: String(err) }, 500);
