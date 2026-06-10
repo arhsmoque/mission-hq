@@ -58,9 +58,12 @@ async function initDatabase() {
   const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
   if (serviceAccountPath) {
-    // Admin mode — bypasses Firebase Security Rules
+    // Admin mode — bypasses Firebase Security Rules.
+    // firebase-admin/database only exports getDatabase; all other operations
+    // are instance methods on the Database / Reference objects, so we wrap them
+    // to match the client SDK calling convention used throughout this file.
     const { initializeApp, cert } = await import('firebase-admin/app');
-    const { getDatabase, ref, get, onChildAdded, runTransaction, update, set, onDisconnect } = await import('firebase-admin/database');
+    const { getDatabase } = await import('firebase-admin/database');
 
     const app = initializeApp({
       credential: cert(serviceAccountPath),
@@ -69,13 +72,13 @@ async function initDatabase() {
 
     db = getDatabase(app);
     useAdmin = true;
-    _ref = ref;
-    _get = get;
-    _onChildAdded = onChildAdded;
-    _runTransaction = runTransaction;
-    _update = update;
-    _set = set;
-    _onDisconnect = onDisconnect;
+    _ref          = (_db, path) => _db.ref(path);
+    _get          = (refObj) => refObj.get();
+    _onChildAdded = (refObj, cb) => { refObj.on('child_added', cb); return () => refObj.off('child_added', cb); };
+    _runTransaction = (refObj, fn) => refObj.transaction(fn);
+    _update       = (refObj, data) => refObj.update(data);
+    _set          = (refObj, data) => refObj.set(data);
+    _onDisconnect = (refObj) => refObj.onDisconnect();
     return;
   }
 
@@ -227,8 +230,10 @@ async function buildPrompt(input) {
 function runGemini(prompt) {
   return new Promise((resolve, reject) => {
     const args = ['-p', prompt, '--output-format', DEFAULT_OUTPUT_FORMAT];
+    // On Windows, npm-installed CLIs are .cmd wrappers and require shell:true to resolve via PATH.
     const child = spawn(GEMINI_BIN, args, {
       windowsHide: true,
+      shell: process.platform === 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
