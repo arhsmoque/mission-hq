@@ -391,6 +391,45 @@ async function handleOrBalance(_request: Request, env: Env): Promise<Response> {
   return json(data);
 }
 
+// ── Page metadata fetch (AnyFlip / FlipHTML5 HTML → title + description) ──
+
+async function handleFetchPage(request: Request): Promise<Response> {
+  const pageUrl = new URL(request.url).searchParams.get('url');
+  if (!pageUrl) return json({ error: 'url param required' }, 400);
+
+  let host: string;
+  try { host = new URL(pageUrl).hostname.toLowerCase(); }
+  catch { return json({ error: 'Invalid URL' }, 400); }
+
+  if (!PROXY_ALLOWED.some((d) => host === d || host.endsWith('.' + d))) {
+    return json({ error: 'Domain not allowed' }, 403);
+  }
+
+  const res = await fetch(pageUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept':     'text/html,application/xhtml+xml,*/*;q=0.9',
+    },
+  });
+
+  if (!res.ok) return json({ error: `HTTP ${res.status}` }, res.status);
+
+  const html = await res.text();
+
+  // Extract title
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const title = titleMatch ? titleMatch[1].replace(/\s*\|\s*AnyFlip.*$/i, '').replace(/\s*\|\s*FlipHTML5.*$/i, '').trim() : '';
+
+  // Extract og:title / og:description / meta description
+  const ogTitle       = (html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ?? [])[1] ?? '';
+  const ogDescription = (html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i) ?? [])[1] ?? '';
+  const metaDesc      = (html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) ?? [])[1] ?? '';
+
+  const description = ogDescription || metaDesc || '';
+
+  return json({ title: ogTitle || title, description });
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────
 
 export default {
@@ -407,6 +446,7 @@ export default {
       }
       if (request.method === 'GET') {
         if (pathname === '/api/resource/proxy-image') return await handleProxyImage(request);
+        if (pathname === '/api/resource/fetch-page')  return await handleFetchPage(request);
         if (pathname === '/api/openrouter/models')    return await handleOrModels(request, env);
         if (pathname === '/api/openrouter/balance')   return await handleOrBalance(request, env);
       }

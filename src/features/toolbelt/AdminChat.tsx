@@ -248,11 +248,35 @@ export default function AdminChat() {
     }
   }
 
+  async function fetchPageMeta(url: string): Promise<string> {
+    try {
+      const res = await fetch(`/api/resource/fetch-page?url=${encodeURIComponent(url)}`);
+      if (!res.ok) return '';
+      const data = await res.json() as { title?: string; description?: string };
+      const parts: string[] = [];
+      if (data.title)       parts.push(`Page title: ${data.title}`);
+      if (data.description) parts.push(`Description: ${data.description}`);
+      return parts.length > 0 ? `\n\n[Fetched from URL]\n${parts.join('\n')}` : '';
+    } catch {
+      return '';
+    }
+  }
+
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
 
-    const userMsg: Message = { role: 'user', content: text };
+    // Auto-fetch AnyFlip / FlipHTML5 page metadata so the AI can infer book details
+    let enrichedText = text;
+    if (directoryMode) {
+      const urlMatch = text.match(/https?:\/\/(?:[a-z0-9-]+\.)?(?:anyflip|fliphtml5)\.com\/[^\s]+/i);
+      if (urlMatch) {
+        const meta = await fetchPageMeta(urlMatch[0]);
+        if (meta) enrichedText = text + meta;
+      }
+    }
+
+    const userMsg: Message = { role: 'user', content: enrichedText };
     const history = [...messages, userMsg];
     setMessages(history);
     setInput('');
