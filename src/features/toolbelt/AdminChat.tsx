@@ -41,6 +41,7 @@ interface Message {
   latencyMs?: number;
   error?: boolean;
   actions?: ActionEntry[];
+  fetchedContext?: string;
 }
 
 type AiRoute = 'api' | 'openrouter' | 'local_companion';
@@ -268,15 +269,19 @@ export default function AdminChat() {
 
     // Auto-fetch AnyFlip / FlipHTML5 page metadata so the AI can infer book details
     let enrichedText = text;
+    let fetchedContext: string | undefined;
     if (directoryMode) {
       const urlMatch = text.match(/https?:\/\/(?:[a-z0-9-]+\.)?(?:anyflip|fliphtml5)\.com\/[^\s]+/i);
       if (urlMatch) {
         const meta = await fetchPageMeta(urlMatch[0]);
-        if (meta) enrichedText = text + meta;
+        if (meta) {
+          fetchedContext = meta.trim();
+          enrichedText = text + meta;
+        }
       }
     }
 
-    const userMsg: Message = { role: 'user', content: enrichedText };
+    const userMsg: Message = { role: 'user', content: enrichedText, fetchedContext };
     const history = [...messages, userMsg];
     setMessages(history);
     setInput('');
@@ -503,7 +508,16 @@ export default function AdminChat() {
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+
+            {/* Fetched context panel — shown above user bubble when URL metadata was injected */}
+            {msg.role === 'user' && msg.fetchedContext && (
+              <div className="mb-1 max-w-[85%] rounded-xl border border-accent/20 bg-accent/5 px-3 py-2 text-xs text-text-3 font-mono">
+                <span className="text-accent font-semibold mr-2">⬡ context injected</span>
+                {msg.fetchedContext}
+              </div>
+            )}
+
             <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
               msg.role === 'user'
                 ? 'bg-accent text-bg rounded-br-sm'
@@ -511,9 +525,11 @@ export default function AdminChat() {
                 ? 'bg-red/10 border border-red/30 text-red rounded-bl-sm'
                 : 'bg-surface border border-border text-text rounded-bl-sm'
             }`}>
-              {/* Strip all action fences from display text */}
+              {/* Strip fetched context suffix and action fences from user bubble display */}
               <p className="whitespace-pre-wrap leading-relaxed">
-                {msg.role === 'assistant' && msg.actions?.length
+                {msg.role === 'user' && msg.fetchedContext
+                  ? msg.content.replace(msg.fetchedContext, '').trimEnd()
+                  : msg.role === 'assistant' && msg.actions?.length
                   ? stripCampaignFences(stripActionFences(msg.content))
                   : msg.content}
               </p>
