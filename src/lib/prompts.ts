@@ -7,9 +7,10 @@ export function buildChatPrompt(options: {
   moduleTitle?: string;
   moduleGoal?: string;
   gadgetContext?: string;
+  tutoringPolicyContext?: string;
   lastMessages: Array<{ role: string; content: string }>;
 }): ChatMessage[] {
-  const { ocrText, moduleTitle, moduleGoal, gadgetContext, lastMessages } = options;
+  const { ocrText, moduleTitle, moduleGoal, gadgetContext, tutoringPolicyContext, lastMessages } = options;
 
   let systemPrompt = `You are a primary-school teaching assistant named Mission Room. You help children aged 7-10 with their homework.
 
@@ -30,6 +31,10 @@ ${ocrText.slice(0, 2000)}
 
   if (gadgetContext) {
     systemPrompt += `\nACTIVE GADGET: ${gadgetContext}\n`;
+  }
+
+  if (tutoringPolicyContext) {
+    systemPrompt += `\n${tutoringPolicyContext}\n`;
   }
 
   const messages: ChatMessage[] = [

@@ -31,6 +31,8 @@ interface SendMessageInput {
   moduleGoal?: string;
   content: string;
   gadgetContext?: string;
+  tutoringPolicyContext?: string;
+  revealAuthorized?: boolean;
   model: string;
   ocrText: string;
 }
@@ -60,12 +62,15 @@ export function useSendMessage() {
         moduleTitle: input.moduleTitle,
         moduleGoal:  input.moduleGoal,
         gadgetContext: input.gadgetContext,
+        tutoringPolicyContext: input.tutoringPolicyContext,
         lastMessages,
       });
       promptMessages.push({ role: 'user', content: input.content });
 
       const rawResponse  = await aiAdapter.chat(promptMessages, input.model, 0.7);
-      const safeResponse = sanitizeResponse(rawResponse, input.ocrText);
+      const safeResponse = input.revealAuthorized
+        ? rawResponse
+        : sanitizeResponse(rawResponse, input.ocrText);
 
       const assistantMsg: Omit<ChatMessage, 'msgId'> = {
         role:      'assistant',

@@ -254,28 +254,49 @@ const OR_HEADERS_STATIC = {
   'X-Title':      'Mission HQ',
 };
 
+function openRouterFallbackModels(model: string): string[] {
+  return [
+    'google/gemini-2.5-flash',
+    'openrouter/auto',
+  ].filter((fallback) => fallback !== model);
+}
+
 async function handleOrChat(request: Request, env: Env): Promise<Response> {
   if (!env.OPENROUTER_API_KEY) {
     return json({ error: 'OPENROUTER_API_KEY secret not configured. Run: wrangler secret put OPENROUTER_API_KEY' }, 500);
   }
 
-  const { messages, model, temperature = 0.7 } = await request.json() as {
-    messages:     Array<{ role: string; content: string }>;
-    model:        string;
-    temperature?: number;
+  const { messages, model, temperature = 0.7, user, responseFormat } = await request.json() as {
+    messages:        Array<{ role: string; content: string }>;
+    model:           string;
+    temperature?:    number;
+    user?:           string;
+    responseFormat?: 'json_object';
   };
 
-  const orBody = {
+  const orBody: Record<string, unknown> = {
     model,
+    fallback_models: openRouterFallbackModels(model),
     messages,
     temperature,
+    user,
+    provider: {
+      sort: 'latency',
+      allow_fallbacks: true,
+    },
   };
+
+  if (responseFormat === 'json_object') {
+    orBody.response_format = { type: 'json_object' };
+  }
 
   const res = await fetch(`${OR_BASE}/chat/completions`, {
     method:  'POST',
     headers: {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+      'X-OpenRouter-Cache': 'true',
+      'X-OpenRouter-Cache-TTL': '3600',
       ...OR_HEADERS_STATIC,
     },
     body: JSON.stringify(orBody),
@@ -324,6 +345,7 @@ async function handleOrOcr(request: Request, env: Env): Promise<Response> {
 
   const orBody = {
     model,
+    fallback_models: openRouterFallbackModels(model),
     messages: [{
       role:    'user',
       content: [
@@ -332,6 +354,10 @@ async function handleOrOcr(request: Request, env: Env): Promise<Response> {
       ],
     }],
     temperature: 0,
+    provider: {
+      sort: 'latency',
+      allow_fallbacks: true,
+    },
   };
 
   const res = await fetch(`${OR_BASE}/chat/completions`, {
@@ -339,6 +365,8 @@ async function handleOrOcr(request: Request, env: Env): Promise<Response> {
     headers: {
       'Content-Type':  'application/json',
       'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+      'X-OpenRouter-Cache': 'true',
+      'X-OpenRouter-Cache-TTL': '3600',
       ...OR_HEADERS_STATIC,
     },
     body: JSON.stringify(orBody),

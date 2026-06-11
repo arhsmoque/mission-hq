@@ -12,6 +12,7 @@
  */
 
 import type { AIPort, AIChatMessage, OcrResult } from '@/ports/ai-port';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 
 const AI_BASE = '/api/ai';
 
@@ -21,11 +22,11 @@ export const geminiAdapter: AIPort = {
     model: string,
     temperature = 0.7
   ): Promise<string> {
-    const res = await fetch(`${AI_BASE}/chat`, {
+    const res = await fetchWithTimeout(`${AI_BASE}/chat`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ messages, model, temperature }),
-    });
+    }, 25000);
 
     if (!res.ok) {
       const err = await res.text();
@@ -38,11 +39,11 @@ export const geminiAdapter: AIPort = {
   },
 
   async ocrImage(imageBase64: string, mimeType: string): Promise<OcrResult> {
-    const res = await fetch(`${AI_BASE}/ocr`, {
+    const res = await fetchWithTimeout(`${AI_BASE}/ocr`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ imageBase64, mimeType }),
-    });
+    }, 45000);
 
     if (!res.ok) {
       const err = await res.text();

@@ -4,6 +4,7 @@ import { generateMissionId } from '@/lib/utils';
 import { aiAdapter, missionStorage } from '@/adapters';
 import { buildModuleGenPrompt } from '@/lib/prompts';
 import { moduleSchema } from '@/lib/validators';
+import { buildBasicMissionFromOcr, normalizeGeneratedMission } from './missionGeneration';
 import type { Mission, Module } from '@/types';
 
 /** Subscribe to a single mission. Resolves once on load; mutations invalidate to refresh. */
@@ -50,13 +51,14 @@ interface CreateMissionInput {
 
 export function useCreateMission() {
   const user = useRootStore((s) => s.user);
+  const profileId = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: CreateMissionInput): Promise<string> => {
       if (!user?.uid) throw new Error('Not authenticated');
       const missionId = generateMissionId();
       await missionStorage.createMission(user.uid, missionId, {
-        profileId: '', // set by caller if needed
+        profileId: profileId ?? '',
         title: 'Untitled Mission',
         client: 'Cikgu',
         status: 'pending',
@@ -84,16 +86,7 @@ async function tryGenerate(ocrText: string, model: string, temperature: number) 
   const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
   const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawResponse);
   const validated = moduleSchema.parse(parsed);
-  const modules: Module[] = validated.modules.map((m, idx) => ({
-    id: m.id ?? idx + 1,
-    title: m.title,
-    goal: m.goal,
-    hint: m.hint,
-    example: m.example ?? undefined,
-    reflectionPrompt: m.reflectionPrompt,
-    isComplete: false,
-  }));
-  return { missionTitle: validated.missionTitle, modules };
+  return normalizeGeneratedMission(validated);
 }
 
 export function useGenerateModules() {
@@ -115,27 +108,20 @@ export function useGenerateModules() {
         return result;
       };
 
-      try {
-        return await save(await tryGenerate(input.ocrText, input.model, 0.3));
-      } catch {
+      const attempts = [
+        () => tryGenerate(input.ocrText, input.model, 0.3),
+        () => tryGenerate(input.ocrText, input.model, 0.2),
+      ];
+
+      for (const attempt of attempts) {
         try {
-          return await save(await tryGenerate(input.ocrText, input.model, 0.2));
-        } catch {
-          const fallback: Module[] = [
-            { id: 1, title: 'Read the Problem',   goal: 'Understand what is being asked', hint: 'Read slowly and circle key words',              reflectionPrompt: 'What is the question asking for?', isComplete: false },
-            { id: 2, title: 'Plan Your Solution', goal: 'Choose a strategy',               hint: 'Think about what operation or method to use', reflectionPrompt: 'What strategy will you try?',       isComplete: false },
-            { id: 3, title: 'Solve and Check',    goal: 'Work through and verify',         hint: 'Do the work step by step',                   reflectionPrompt: 'Does your answer make sense?',   isComplete: false },
-          ];
-          await missionStorage.updateMission(user.uid, input.missionId, {
-            title: 'Untitled Mission',
-            status: 'active',
-            'aiAnalysis/model': input.model,
-            'aiAnalysis/generatedAt': Date.now(),
-            'aiAnalysis/modules': fallback,
-          });
-          return { missionTitle: 'Untitled Mission', modules: fallback };
+          return await save(await attempt());
+        } catch (err) {
+          console.warn('AI mission generation attempt failed:', err);
         }
       }
+
+      return await save(buildBasicMissionFromOcr(input.ocrText));
     },
     onSuccess: (_, input) => {
       const uid = useRootStore.getState().user?.uid;

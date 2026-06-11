@@ -17,6 +17,7 @@ export default function OcrPreview({
 }: OcrPreviewProps) {
   const [text, setText] = useState(initialText);
   const confidenceOk = confidence >= 85;
+  const canBuild = text.trim().length > 0;
 
   return (
     <div className="space-y-4">
@@ -60,7 +61,8 @@ export default function OcrPreview({
       <div className="flex gap-3">
         <button
           onClick={() => onConfirm(text)}
-          className="flex-1 rounded-xl bg-accent py-3 font-bold text-white shadow-md active:scale-[0.98]"
+          disabled={!canBuild}
+          className="flex-1 rounded-xl bg-accent py-3 font-bold text-white shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Looks Good — Build My Mission!
         </button>

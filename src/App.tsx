@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRootStore } from './stores/rootStore'
+import AppErrorBoundary from './components/AppErrorBoundary'
 
 
 // Lazy-loaded routes for code splitting
@@ -35,21 +36,23 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppShell>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/new-mission" element={<PrivateRoute><NewMission /></PrivateRoute>} />
-          <Route path="/mission/:missionId" element={<PrivateRoute><MissionView /></PrivateRoute>} />
-          <Route path="/chinese-lab" element={<PrivateRoute><ChineseLab /></PrivateRoute>} />
-          <Route path="/toolbelt" element={<PrivateRoute><Toolbelt /></PrivateRoute>} />
-          <Route path="/lesson-builder" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />
-          <Route path="/lesson-builder/:lessonId" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />
-          <Route path="/lesson/:lessonId" element={<PrivateRoute><LessonPlayer /></PrivateRoute>} />
-          <Route path="/today"  element={<PrivateRoute><Today /></PrivateRoute>} />
-          <Route path="/parent" element={<ParentDashboard />} />
-        </Routes>
-      </AppShell>
-    </BrowserRouter>
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <AppShell>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/new-mission" element={<PrivateRoute><NewMission /></PrivateRoute>} />
+            <Route path="/mission/:missionId" element={<PrivateRoute><MissionView /></PrivateRoute>} />
+            <Route path="/chinese-lab" element={<PrivateRoute><ChineseLab /></PrivateRoute>} />
+            <Route path="/toolbelt" element={<PrivateRoute><Toolbelt /></PrivateRoute>} />
+            <Route path="/lesson-builder" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />
+            <Route path="/lesson-builder/:lessonId" element={<PrivateRoute><LessonBuilder /></PrivateRoute>} />
+            <Route path="/lesson/:lessonId" element={<PrivateRoute><LessonPlayer /></PrivateRoute>} />
+            <Route path="/today"  element={<PrivateRoute><Today /></PrivateRoute>} />
+            <Route path="/parent" element={<ParentDashboard />} />
+          </Routes>
+        </AppShell>
+      </BrowserRouter>
+    </AppErrorBoundary>
   )
 }

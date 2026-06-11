@@ -13,6 +13,7 @@
 
 import type { AIPort, AIChatMessage, OcrResult } from '@/ports/ai-port';
 import { useRootStore } from '@/stores/rootStore';
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout';
 import type { ErrorEntry } from '@/stores/rootStore';
 
 const OR_BASE = '/api/openrouter';
@@ -20,6 +21,12 @@ const OR_BASE = '/api/openrouter';
 function resolveModel(model: string): string {
   if (model.includes('/')) return model;
   return useRootStore.getState().openrouterModel;
+}
+
+function wantsJsonObject(messages: AIChatMessage[]): boolean {
+  return messages.some((m) =>
+    /respond only with a json object|return only valid json|output schema/i.test(m.content)
+  );
 }
 
 function logError(entry: Omit<ErrorEntry, 'id' | 'ts'>) {
@@ -37,11 +44,18 @@ export const openrouterAdapter: AIPort = {
 
     let res: Response;
     try {
-      res = await fetch(`${OR_BASE}/chat`, {
+      const uid = useRootStore.getState().user?.uid;
+      res = await fetchWithTimeout(`${OR_BASE}/chat`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ messages, model: orModel, temperature }),
-      });
+        body:    JSON.stringify({
+          messages,
+          model: orModel,
+          temperature,
+          user: uid,
+          responseFormat: wantsJsonObject(messages) ? 'json_object' : undefined,
+        }),
+      }, 25000);
     } catch (err) {
       logError({ source: 'chat', model: orModel, message: `Network error: ${String(err)}`, latencyMs: Date.now() - t0 });
       throw err;
@@ -76,11 +90,11 @@ export const openrouterAdapter: AIPort = {
 
     let res: Response;
     try {
-      res = await fetch(`${OR_BASE}/ocr`, {
+      res = await fetchWithTimeout(`${OR_BASE}/ocr`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ imageBase64, mimeType, model: orModel }),
-      });
+      }, 45000);
     } catch (err) {
       logError({ source: 'ocr', model: orModel, message: `Network error: ${String(err)}`, latencyMs: Date.now() - t0 });
       throw err;
