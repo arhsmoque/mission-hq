@@ -45,4 +45,19 @@ describe('sanitizeResponse', () => {
     const r = sanitizeResponse('THE ANSWER IS 99', '');
     expect(r).toContain(TRACK);
   });
+
+  it('does not block question labels like "Question 3"', () => {
+    const r = sanitizeResponse("Let's look at Question 3 together.", 'Question 3: 5 + 3 = ?');
+    expect(r).toBe("Let's look at Question 3 together.");
+  });
+
+  it('blocks textual number leaks like "the answer is five"', () => {
+    const r = sanitizeResponse('the answer is five', '');
+    expect(r).toContain(TRACK);
+  });
+
+  it('blocks option letter leaks like "Choose option B"', () => {
+    const r = sanitizeResponse('Choose option B', '');
+    expect(r).toContain(TRACK);
+  });
 });

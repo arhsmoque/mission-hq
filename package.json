@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:worker": "wrangler dev --port 8787",
     "companion:gemini": "node scripts/local-gemini-companion.mjs",
+    "companion:agy": "node scripts/local-agy-companion.mjs",
     "companion:test-job": "node scripts/companion-test-job.mjs",
     "build": "tsc -b && vite build",
     "deploy": "npm run build && wrangler deploy",
