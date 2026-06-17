@@ -21,9 +21,16 @@ import { firebaseAnalyticsAdapter }                                         from
 import { firebaseResourcesAdapter }                                         from './storage/firebase-resources-adapter';
 import { firebaseCampaignsAdapter, firebaseSessionContentAdapter }         from './storage/firebase-campaigns-adapter';
 import { useRootStore }                                                     from '@/stores/rootStore';
+import { subscribeLocalCompanions, isCompanionFresh }                      from '@/lib/localCompanionStatus';
 import type { AIPort, AIChatMessage, OcrResult }                            from '@/ports/ai-port';
 
 export { getPageSlice, splitExtractedPages } from './storage/firebase-resources-adapter';
+
+// ── Companion online state — updated by a persistent RTDB subscription ─────
+let _companionOnline = false;
+subscribeLocalCompanions((companions) => {
+  _companionOnline = companions.some(isCompanionFresh);
+});
 
 function getActiveAiAdapter(): AIPort {
   const { aiProvider } = useRootStore.getState();
@@ -32,13 +39,30 @@ function getActiveAiAdapter(): AIPort {
 
 // ── Active adapters ────────────────────────────────────────────────────────
 
-/** Runtime-dispatching AI proxy — reads aiProvider from store on each call. */
+/**
+ * Runtime-dispatching AI proxy.
+ * - chat: when a local companion is online, prefers geminiAdapter (direct, no quota cost).
+ *         Falls back to openrouterAdapter on failure or when companion is offline.
+ * - ocrImage: always tries geminiAdapter (vision Worker) first; local companion queue
+ *             does not support image input, so openrouter is the only fallback.
+ */
 export const aiAdapter: AIPort = {
-  chat(messages: AIChatMessage[], model: string, temperature?: number): Promise<string> {
+  async chat(messages: AIChatMessage[], model: string, temperature?: number): Promise<string> {
+    if (_companionOnline) {
+      try {
+        return await geminiAdapter.chat(messages, model, temperature);
+      } catch {
+        // companion online but Gemini Worker failed — fall through to configured provider
+      }
+    }
     return getActiveAiAdapter().chat(messages, model, temperature);
   },
-  ocrImage(imageBase64: string, mimeType: string): Promise<OcrResult> {
-    return getActiveAiAdapter().ocrImage(imageBase64, mimeType);
+  async ocrImage(imageBase64: string, mimeType: string): Promise<OcrResult> {
+    try {
+      return await geminiAdapter.ocrImage(imageBase64, mimeType);
+    } catch {
+      return openrouterAdapter.ocrImage(imageBase64, mimeType);
+    }
   },
 };
 

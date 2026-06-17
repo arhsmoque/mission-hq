@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRootStore } from '@/stores/rootStore';
 import { generateMissionId } from '@/lib/utils';
 import { aiAdapter, missionStorage } from '@/adapters';
@@ -7,40 +8,44 @@ import { moduleSchema } from '@/lib/validators';
 import { buildBasicMissionFromOcr, normalizeGeneratedMission } from './missionGeneration';
 import type { Mission, Module } from '@/types';
 
-/** Subscribe to a single mission. Resolves once on load; mutations invalidate to refresh. */
+/** Real-time subscription to a single mission. */
 export function useMission(missionId: string) {
   const user = useRootStore((s) => s.user);
-  return useQuery({
-    queryKey: ['mission', user?.uid, missionId],
-    queryFn: () =>
-      new Promise<Mission | null>((resolve) => {
-        if (!user?.uid) return resolve(null);
-        const unsub = missionStorage.subscribeMission(user.uid, missionId, (m) => {
-          resolve(m);
-          unsub();
-        });
-      }),
-    staleTime: Infinity,
-    enabled: !!user?.uid && !!missionId,
-  });
+  const [data, setData]         = useState<Mission | null>(null);
+  const [isLoading, setLoading] = useState(true);
+  const [error]                 = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid || !missionId) { setLoading(false); return; }
+    setLoading(true);
+    const unsub = missionStorage.subscribeMission(user.uid, missionId, (m) => {
+      setData(m);
+      setLoading(false);
+    });
+    return unsub;
+  }, [user?.uid, missionId]);
+
+  return { data, isLoading, error };
 }
 
-/** Subscribe to all missions for the active user. */
+/** Real-time subscription to all missions for the active user. */
 export function useAllMissions() {
   const user = useRootStore((s) => s.user);
-  return useQuery({
-    queryKey: ['missions', user?.uid],
-    queryFn: () =>
-      new Promise<Mission[]>((resolve) => {
-        if (!user?.uid) return resolve([]);
-        const unsub = missionStorage.subscribeAllMissions(user.uid, (ms) => {
-          resolve(ms);
-          unsub();
-        });
-      }),
-    staleTime: Infinity,
-    enabled: !!user?.uid,
-  });
+  const [data, setData]         = useState<Mission[]>([]);
+  const [isLoading, setLoading] = useState(true);
+  const [error]                 = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) { setLoading(false); return; }
+    setLoading(true);
+    const unsub = missionStorage.subscribeAllMissions(user.uid, (ms) => {
+      setData(ms);
+      setLoading(false);
+    });
+    return unsub;
+  }, [user?.uid]);
+
+  return { data, isLoading, error };
 }
 
 interface CreateMissionInput {
