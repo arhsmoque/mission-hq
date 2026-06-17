@@ -140,3 +140,45 @@ The seed key was bumped from `mhq_methods_seeded` to `mhq_methods_seeded_v2` so 
 | `src/lib/methodSeeds.ts` | Added CPA Approach + 5E Inquiry method seeds; bumped seed key to v2 |
 | `JOURNAL.md` | This entry |
 | `docs/agent-progress-report.md` | New: self-contained context document for future agents |
+
+---
+
+## 2026-06-17 — Session B: P1 Audit + P2 Inline Activity Editor
+
+### Context
+
+Continuation of the Jun 17 session (Session A). Standing instruction established: always append a trace report to the repo for future agent reference.
+
+### Key Finding: P1 Was Already Done
+
+The JOURNAL Session A entry listed "analytics wiring in `LessonPlayer.tsx`" as P1 for next session. Upon inspection, both `analyticsAdapter.startSession()` and `analyticsAdapter.completeSession()` were already fully wired in the file. The analytics feedback loop is therefore complete:
+
+1. `LessonPlayer` calls `startSession` on each section transition
+2. `LessonPlayer` calls `completeSession` when child clicks "I Finished"
+3. `firebaseAnalyticsAdapter.completeSession()` updates `effectiveness/{methodId}/{subject}` aggregates
+4. `methodRegistry.selectBestMethod()` reads those aggregates to auto-select the best method
+
+The `chatTurnsUsed` field is hardcoded to `0` — acceptable because the lesson player has no integrated chat panel. Hints are tracked correctly.
+
+### P2: Human-in-the-Loop Activity Editor
+
+Added an inline edit panel to `LessonBuilder.tsx` for `generated` and `needs_review` sections. Previously, parents could only Approve / Reject / Regenerate — a stuck `needs_review` loop required triggering a full AI regeneration which sometimes reproduced the same issues.
+
+The new Edit button opens an inline form showing each activity's `instruction`, `hint`, and `successCriteria` as editable fields. Saving writes the changes via `lessonStorage.updateSection` and resets status to `'generated'` (not `'approved'`), routing the edited version back through the parent approval gate before it reaches children.
+
+*Design choice:* Editing resets to `'generated'` rather than `'approved'` because a parent editing an activity is correcting AI output, not approving it. The explicit approve step is preserved as the human gate.
+
+### Files Changed (Session B)
+
+| File | Change |
+|---|---|
+| `src/routes/LessonBuilder.tsx` | Added `EditingActivity` interface + inline activity editor for generated/needs_review sections |
+| `docs/agent-trace-jun17b.md` | Session B trace report |
+| `JOURNAL.md` | This entry |
+
+### Open Questions (Carried Forward)
+
+- **Parent PIN security:** `240514` still hardcoded in `src/config.ts` (P3)
+- **Safety filter:** Textual answers leak; numeric scan wipes Socratic guidance as collateral (P4)
+- **`localDb.ts` orphan:** Wire as offline storage or delete (P4)
+- **Anonymous → permanent account:** `linkWithCredential` flow in `ProfilePicker.tsx` (P5)
