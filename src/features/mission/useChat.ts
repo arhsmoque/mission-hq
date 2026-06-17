@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { auth } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
 import { aiAdapter, chatStorage } from '@/adapters';
@@ -6,22 +7,24 @@ import { buildChatPrompt } from '@/lib/prompts';
 import { sanitizeResponse } from '@/lib/safety';
 import type { ChatMessage } from '@/types';
 
-/** Subscribe to all chat messages for a mission. Resolves once; mutations invalidate to refresh. */
+/** Real-time subscription to all chat messages for a mission. */
 export function useChatMessages(missionId: string) {
   const user = useRootStore((s) => s.user);
-  return useQuery({
-    queryKey: ['chatMessages', user?.uid, missionId],
-    queryFn: () =>
-      new Promise<ChatMessage[]>((resolve) => {
-        if (!user?.uid) return resolve([]);
-        const unsub = chatStorage.subscribeMessages(user.uid, missionId, (msgs) => {
-          resolve(msgs);
-          unsub();
-        });
-      }),
-    staleTime: Infinity,
-    enabled: !!user?.uid && !!missionId,
-  });
+  const [data, setData]       = useState<ChatMessage[]>([]);
+  const [isLoading, setLoading] = useState(true);
+  const [error, setError]     = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid || !missionId) { setLoading(false); return; }
+    setLoading(true);
+    const unsub = chatStorage.subscribeMessages(user.uid, missionId, (msgs) => {
+      setData(msgs);
+      setLoading(false);
+    });
+    return unsub;
+  }, [user?.uid, missionId]);
+
+  return { data, isLoading, error };
 }
 
 interface SendMessageInput {

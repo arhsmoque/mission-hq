@@ -18,6 +18,8 @@ import type { ErrorEntry } from '@/stores/rootStore';
 
 const OR_BASE = '/api/openrouter';
 
+const FREE_FALLBACK_MODEL = 'deepseek/deepseek-chat-v3-0324:free';
+
 function resolveModel(model: string): string {
   if (model.includes('/')) return model;
   return useRootStore.getState().openrouterModel;
@@ -66,6 +68,25 @@ export const openrouterAdapter: AIPort = {
     if (!res.ok) {
       const errText = await res.text();
       logError({ source: 'chat', model: orModel, message: errText, status: res.status, latencyMs });
+
+      // Credit exhausted or rate-limited — retry once with free fallback model
+      if ((res.status === 402 || res.status === 429 || res.status >= 500) && orModel !== FREE_FALLBACK_MODEL) {
+        logError({ source: 'chat', model: orModel, message: `Falling back to ${FREE_FALLBACK_MODEL} after ${res.status}`, latencyMs: 0 });
+        const uid = useRootStore.getState().user?.uid;
+        const fallbackRes = await fetchWithTimeout(`${OR_BASE}/chat`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ messages, model: FREE_FALLBACK_MODEL, temperature, user: uid }),
+        }, 25000);
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json() as { text?: string; tokens?: { prompt: number; completion: number; total: number }; error?: string };
+          if (!fallbackData.error) {
+            if (fallbackData.tokens) useRootStore.getState().setLastTokenUsage(fallbackData.tokens);
+            return fallbackData.text ?? '';
+          }
+        }
+      }
+
       throw new Error(`OpenRouter chat ${res.status}: ${errText}`);
     }
 
