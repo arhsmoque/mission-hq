@@ -10,9 +10,9 @@ import type { ChatMessage } from '@/types';
 /** Real-time subscription to all chat messages for a mission. */
 export function useChatMessages(missionId: string) {
   const user = useRootStore((s) => s.user);
-  const [data, setData]       = useState<ChatMessage[]>([]);
+  const [data, setData]         = useState<ChatMessage[]>([]);
   const [isLoading, setLoading] = useState(true);
-  const [error, setError]     = useState<Error | null>(null);
+  const [error]                 = useState<Error | null>(null);
 
   useEffect(() => {
     if (!user?.uid || !missionId) { setLoading(false); return; }

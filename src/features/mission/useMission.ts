@@ -11,9 +11,9 @@ import type { Mission, Module } from '@/types';
 /** Real-time subscription to a single mission. */
 export function useMission(missionId: string) {
   const user = useRootStore((s) => s.user);
-  const [data, setData]       = useState<Mission | null>(null);
+  const [data, setData]         = useState<Mission | null>(null);
   const [isLoading, setLoading] = useState(true);
-  const [error, setError]     = useState<Error | null>(null);
+  const [error]                 = useState<Error | null>(null);
 
   useEffect(() => {
     if (!user?.uid || !missionId) { setLoading(false); return; }
@@ -31,9 +31,9 @@ export function useMission(missionId: string) {
 /** Real-time subscription to all missions for the active user. */
 export function useAllMissions() {
   const user = useRootStore((s) => s.user);
-  const [data, setData]       = useState<Mission[]>([]);
+  const [data, setData]         = useState<Mission[]>([]);
   const [isLoading, setLoading] = useState(true);
-  const [error, setError]     = useState<Error | null>(null);
+  const [error]                 = useState<Error | null>(null);
 
   useEffect(() => {
     if (!user?.uid) { setLoading(false); return; }
