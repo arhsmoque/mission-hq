@@ -54,7 +54,7 @@ export default function NewMission() {
         setStep('preview');
       }
     },
-    [createMission, generateModules, navigate, ocrResult.confidence, selectedModel]
+    [createMission, generateModules, navigate, ocrResult.engine, ocrResult.confidence, selectedModel]
   );
 
   const handleRetry = useCallback(() => {
