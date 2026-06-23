@@ -19,6 +19,7 @@ import { FREE_FALLBACK_MODEL_ID } from '@/lib/models';
 
 const OR_BASE = '/api/openrouter';
 
+
 function resolveModel(model: string): string {
   if (model.includes('/')) return model;
   return useRootStore.getState().openrouterModel;
@@ -108,6 +109,7 @@ export const openrouterAdapter: AIPort = {
     if (!res.ok) {
       const errText = await res.text();
       logError({ source: 'chat', model: currentModel, message: errText, status: res.status, latencyMs });
+
       throw new Error(`OpenRouter chat ${res.status}: ${errText}`);
     }
 

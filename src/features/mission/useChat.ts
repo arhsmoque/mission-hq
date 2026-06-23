@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { auth } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
@@ -5,7 +6,6 @@ import { aiAdapter, chatStorage } from '@/adapters';
 import { buildChatPrompt } from '@/lib/prompts';
 import { sanitizeResponse } from '@/lib/safety';
 import type { ChatMessage } from '@/types';
-import { useState, useEffect } from 'react';
 
 /** Subscribe to all chat messages for a mission in real-time. */
 export function useChatMessages(missionId: string) {

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRootStore } from '@/stores/rootStore';
 import { generateMissionId } from '@/lib/utils';
@@ -6,7 +7,6 @@ import { buildModuleGenPrompt } from '@/lib/prompts';
 import { moduleSchema } from '@/lib/validators';
 import { buildBasicMissionFromOcr, normalizeGeneratedMission } from './missionGeneration';
 import type { Mission, Module } from '@/types';
-import { useState, useEffect } from 'react';
 
 /** Subscribe to a single mission in real-time. */
 export function useMission(missionId: string) {

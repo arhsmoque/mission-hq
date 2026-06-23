@@ -58,3 +58,127 @@ Stage 1 is purely data layer: types, ports, adapters, RTDB rules, and the Bloom'
 ### Next Session (Stage 2)
 
 Focus: PDF upload UI, Gemini Files API integration, two-phase extraction, Firebase Storage persistence. Key file: `src/lib/pdfIngestion.ts`. Key worker routes: `/api/ai/pdf-toc` and `/api/ai/pdf-section`.
+
+---
+
+## 2026-06-17 — Multi-Agent Audit + Hardening Pass
+
+### Context
+
+A comprehensive audit was performed across all prior agent sessions (Claude Jun 5 handoff, Kimi Jun 10, Codex Jun 11, Gemini Jun 14). The goal: reconcile what each agent claimed to have done against what actually landed in the repo, identify gaps, and implement missing fixes in a single session.
+
+### What Prior Agents Did (Summary)
+
+**Claude (Jun 5):** Found 4 bugs; all subsequently fixed. Salvaged `src/lib/localDb.ts` — a localStorage adapter that exists in the repo but is currently imported nowhere (dead code, intentionally left as offline-mode runway).
+
+**Kimi (Jun 10):** Fixed the critical AI judge parse failure bug (`overallPass = true` on invalid JSON → changed to `false`). Added Zod validation to lesson generation. Wrote `LessonBuilder.tsx` and `LessonPlayer.tsx`. Added `EvaluationAttempt` type and `evaluationLog`/`parentNotes` fields to `LessonSection`.
+
+**Codex (Jun 11):** Added full tutoring policy (intent classification, hint escalation, rapid-attempt lockout, PIN-gated answer reveal). Added `fetchWithTimeout.ts`, `AppErrorBoundary.tsx`, and a deterministic OCR-to-mission fallback when AI generation fails. Added OpenRouter timeout and JSON-mode detection.
+
+**Gemini (Jun 14):** Performed thorough architecture study and implemented 6 hardening fixes locally — but **never committed or pushed**. Those changes were validated (build + 23 tests) but lost. This session re-implements them.
+
+### Key Design Decisions (Jun 17)
+
+**1. Real-time subscriptions for `useMission` and `useChatMessages`**
+
+Both hooks were wrapping Firebase `onValue` inside a React Query `queryFn` and immediately calling `unsub()`. This means the UI only received data once (at mount) and would not update when background processes (local companion, parent approval) modified the database. Refactored both to `useState` + `useEffect` with persistent `onValue` subscriptions that unsubscribe on cleanup.
+
+*Tradeoff accepted:* We lose React Query's caching and `invalidateQueries` for these hooks. This is acceptable because the data source is already Firebase RTDB, which is effectively a cache. The mutation hooks (`useGenerateModules`, `useCompleteMission`) still use React Query mutations — they write to Firebase, which then triggers the `onValue` listener and updates the UI naturally.
+
+**2. OpenRouter credit/rate fallback to free model**
+
+When OpenRouter returns 402 (credit exhausted), 429 (rate limited), or 5xx (server error), the adapter now retries the request once with `deepseek/deepseek-chat-v3-0324:free`. This prevents hard crashes when the paid model balance runs out during a session. The fallback is logged to the errorLog in rootStore for admin visibility.
+
+*Tradeoff accepted:* The free DeepSeek model is less capable than the paid models. Quality may degrade. But a degraded response is better than a crashed session for a child in the middle of a lesson.
+
+**3. Separate evaluation model (`gemini-2.5-pro`) from generation model (`gemini-2.5-flash`)**
+
+Previously both passes used the same `gemini-2.5-flash`. Using the same model to evaluate its own output creates a circular self-grading loop — the model is inclined to approve what it just generated. Using a stronger, separate model (`gemini-2.5-pro`) for evaluation provides genuinely independent scrutiny.
+
+*Cost implication:* One `gemini-2.5-pro` call per section per generation attempt. For a 10-section lesson with no retries, this is 10 extra Pro calls. Acceptable for the quality guarantee it provides.
+
+**4. `redirect: 'manual'` on Worker proxy routes**
+
+The `proxy-image` and `fetch-page` Cloudflare Worker routes fetched external URLs and followed redirects automatically. A malicious or compromised AnyFlip/FlipHTML5 CDN URL could redirect to an internal address (SSRF). Adding `redirect: 'manual'` blocks all redirect chains — the fetch returns a non-2xx response immediately if the target redirects, and the worker returns an error.
+
+*Tradeoff accepted:* Some legitimate CDN redirect chains (e.g., CDN load balancer redirects to the actual image host) will now fail. We accept this because the domain allowlist already restricts to known-safe domains, and the SSRF risk outweighs the CDN compatibility concern.
+
+**5. Companion-aware AI routing in `src/adapters/index.ts`**
+
+A persistent `subscribeLocalCompanions` subscription runs at module load time and tracks whether any local companion is reporting a fresh heartbeat (within 45 seconds). When the companion is online, `aiAdapter.chat()` routes to `geminiAdapter` (direct Cloudflare Worker → Gemini API) rather than `openrouterAdapter`. This reduces OpenRouter quota consumption when the parent has a local companion running.
+
+For `ocrImage`, the adapter always tries `geminiAdapter` first — the local companion queue does not support image input, so there is no companion route for OCR. OpenRouter is the fallback.
+
+*Tradeoff accepted:* The companion-online check is approximate (45s heartbeat window). There is a brief window after a companion goes offline where the app continues routing to Gemini. This degrades gracefully — Gemini calls may fail with a network error, which the `try/catch` catches and falls back to the configured provider.
+
+**6. CPA and 5E teaching methods added to seed registry**
+
+The method registry has always been designed to hold more than Bloom's Taxonomy. Both CPA (Concrete-Pictorial-Abstract, for primary maths) and 5E Inquiry (for science and language) were documented since Stage 1 design but never seeded. Both are now fully specified with phases, system prompts, output schemas, and evaluation rubrics.
+
+The seed key was bumped from `mhq_methods_seeded` to `mhq_methods_seeded_v2` so existing deployments re-seed on next startup, adding the two new methods without duplicating Bloom's (Firebase's `createMethod` overwrites by key).
+
+*Method selection:* `selectBestMethod()` auto-selects based on `unaidedCompletionRate` analytics scores. Until analytics accumulate, it falls back to `blooms_taxonomy`. Parents/admins can explicitly choose a method via the lesson generation flow.
+
+### Open Questions (Jun 17)
+
+- **Analytics wiring still missing:** `LessonPlayer.tsx` does not yet call `analyticsAdapter.completeSession()` when a child finishes a section. Without this, `selectBestMethod()` always returns Bloom's because no effectiveness scores ever accumulate. This is P1 for next session.
+- **Parent PIN security:** `240514` is still hardcoded in `src/config.ts` and visible in the browser bundle. The fix (Firebase-stored hashed PIN with a "Change PIN" UI) is well-understood but not yet implemented.
+- **Safety filter limitations:** The current number-scan approach has two known holes: (a) textual answers pass through, (b) Socratic guidance that includes question numbers gets wiped as collateral damage. The proposed fix (hidden `expectedAnswer` field + fuzzy matching) requires a module generation schema change and was intentionally deferred.
+- **`localDb.ts` orphan:** The localStorage adapter exists but connects to nothing. Decision pending: wire it as a fallback storage port for offline mode, or delete it as dead code.
+- **Human-in-the-loop lesson editing:** Parents stuck in a `needs_review` loop have no way to manually fix activities and force-approve. An edit modal in `LessonBuilder.tsx` would resolve this completely.
+
+### Files Changed (Jun 17)
+
+| File | Change |
+|---|---|
+| `src/features/mission/useChat.ts` | Refactored `useChatMessages` to real-time `useState` + `useEffect` subscription |
+| `src/features/mission/useMission.ts` | Refactored `useMission` + `useAllMissions` to real-time subscriptions |
+| `src/adapters/ai/openrouter-adapter.ts` | Added `FREE_FALLBACK_MODEL` + 402/429/5xx retry with free model |
+| `src/lib/lessonGenerator.ts` | Added `EVAL_MODEL = 'gemini-2.5-pro'`; evaluation pass now uses separate model |
+| `src/worker.ts` | Added `redirect: 'manual'` to `proxy-image` and `fetch-page` routes (SSRF fix) |
+| `src/adapters/index.ts` | Added `isAnyCompanionOnline` tracking + companion-first AI routing |
+| `src/lib/methodSeeds.ts` | Added CPA Approach + 5E Inquiry method seeds; bumped seed key to v2 |
+| `JOURNAL.md` | This entry |
+| `docs/agent-progress-report.md` | New: self-contained context document for future agents |
+
+---
+
+## 2026-06-17 — Session B: P1 Audit + P2 Inline Activity Editor
+
+### Context
+
+Continuation of the Jun 17 session (Session A). Standing instruction established: always append a trace report to the repo for future agent reference.
+
+### Key Finding: P1 Was Already Done
+
+The JOURNAL Session A entry listed "analytics wiring in `LessonPlayer.tsx`" as P1 for next session. Upon inspection, both `analyticsAdapter.startSession()` and `analyticsAdapter.completeSession()` were already fully wired in the file. The analytics feedback loop is therefore complete:
+
+1. `LessonPlayer` calls `startSession` on each section transition
+2. `LessonPlayer` calls `completeSession` when child clicks "I Finished"
+3. `firebaseAnalyticsAdapter.completeSession()` updates `effectiveness/{methodId}/{subject}` aggregates
+4. `methodRegistry.selectBestMethod()` reads those aggregates to auto-select the best method
+
+The `chatTurnsUsed` field is hardcoded to `0` — acceptable because the lesson player has no integrated chat panel. Hints are tracked correctly.
+
+### P2: Human-in-the-Loop Activity Editor
+
+Added an inline edit panel to `LessonBuilder.tsx` for `generated` and `needs_review` sections. Previously, parents could only Approve / Reject / Regenerate — a stuck `needs_review` loop required triggering a full AI regeneration which sometimes reproduced the same issues.
+
+The new Edit button opens an inline form showing each activity's `instruction`, `hint`, and `successCriteria` as editable fields. Saving writes the changes via `lessonStorage.updateSection` and resets status to `'generated'` (not `'approved'`), routing the edited version back through the parent approval gate before it reaches children.
+
+*Design choice:* Editing resets to `'generated'` rather than `'approved'` because a parent editing an activity is correcting AI output, not approving it. The explicit approve step is preserved as the human gate.
+
+### Files Changed (Session B)
+
+| File | Change |
+|---|---|
+| `src/routes/LessonBuilder.tsx` | Added `EditingActivity` interface + inline activity editor for generated/needs_review sections |
+| `docs/agent-trace-jun17b.md` | Session B trace report |
+| `JOURNAL.md` | This entry |
+
+### Open Questions (Carried Forward)
+
+- **Parent PIN security:** `240514` still hardcoded in `src/config.ts` (P3)
+- **Safety filter:** Textual answers leak; numeric scan wipes Socratic guidance as collateral (P4)
+- **`localDb.ts` orphan:** Wire as offline storage or delete (P4)
+- **Anonymous → permanent account:** `linkWithCredential` flow in `ProfilePicker.tsx` (P5)

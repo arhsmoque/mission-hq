@@ -115,6 +115,12 @@ function LessonList() {
 
 // ── Detail View ───────────────────────────────────────────────────────────────
 
+interface EditingActivity {
+  instruction: string;
+  hint: string;
+  successCriteria: string;
+}
+
 function LessonDetail({ lessonId }: { lessonId: string }) {
   const navigate = useNavigate();
   const user = useRootStore((s) => s.user);
@@ -122,6 +128,9 @@ function LessonDetail({ lessonId }: { lessonId: string }) {
   const [regenerating, setRegenerating] = useState<Record<string, boolean>>({});
   const [rejectNotes, setRejectNotes] = useState<Record<string, string>>({});
   const [showReject, setShowReject] = useState<Record<string, boolean>>({});
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
+  const [editingActivities, setEditingActivities] = useState<EditingActivity[]>([]);
+  const [saving, setSaving] = useState(false);
 
   if (loading)
     return (
@@ -173,6 +182,37 @@ function LessonDetail({ lessonId }: { lessonId: string }) {
       parentReviewed: true,
       updatedAt: Date.now(),
     });
+  }
+
+  function openEdit(section: LessonSection) {
+    setEditingSectionId(section.sectionId);
+    setEditingActivities(
+      (section.activities ?? []).map((a) => ({
+        instruction: a.instruction,
+        hint: a.hint,
+        successCriteria: a.successCriteria,
+      }))
+    );
+  }
+
+  async function handleSaveEdit(sectionId: string, section: LessonSection) {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const updatedActivities = editingActivities.map((ea, i) => ({
+        ...(section.activities?.[i] ?? { type: 'guided_practice' as const }),
+        instruction: ea.instruction,
+        hint: ea.hint,
+        successCriteria: ea.successCriteria,
+      }));
+      await lessonStorage.updateSection(user.uid, lessonId, sectionId, {
+        activities: updatedActivities,
+        status: 'generated',
+      });
+      setEditingSectionId(null);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -351,6 +391,12 @@ function LessonDetail({ lessonId }: { lessonId: string }) {
                   >
                     Reject
                   </button>
+                  <button
+                    onClick={() => openEdit(section)}
+                    className="text-xs bg-text-3/10 text-text-2 border border-border rounded-lg px-3 py-1 hover:bg-text-3/20 transition-colors"
+                  >
+                    ✏️ Edit
+                  </button>
                 </>
               )}
               {(section.status === 'needs_review' ||
@@ -388,6 +434,74 @@ function LessonDetail({ lessonId }: { lessonId: string }) {
                 >
                   Confirm Reject
                 </button>
+              </div>
+            )}
+
+            {/* Inline activity editor */}
+            {editingSectionId === section.sectionId && (
+              <div className="mt-3 space-y-3 rounded-xl border border-accent/30 bg-accent/5 p-3">
+                <p className="text-[10px] font-bold text-accent uppercase tracking-wide">
+                  Editing Activities — Save to mark as Generated for re-approval
+                </p>
+                {editingActivities.map((ea, i) => (
+                  <div key={i} className="space-y-1.5 rounded-lg border border-border bg-bg p-2">
+                    <p className="text-[10px] font-semibold text-text-3 uppercase">
+                      Activity {i + 1}
+                    </p>
+                    <textarea
+                      value={ea.instruction}
+                      onChange={(e) =>
+                        setEditingActivities((prev) =>
+                          prev.map((a, j) =>
+                            j === i ? { ...a, instruction: e.target.value } : a
+                          )
+                        )
+                      }
+                      placeholder="Instruction"
+                      rows={2}
+                      className="w-full rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text placeholder-text-3 focus:border-accent focus:outline-none resize-none"
+                    />
+                    <input
+                      value={ea.hint}
+                      onChange={(e) =>
+                        setEditingActivities((prev) =>
+                          prev.map((a, j) =>
+                            j === i ? { ...a, hint: e.target.value } : a
+                          )
+                        )
+                      }
+                      placeholder="Hint"
+                      className="w-full rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text placeholder-text-3 focus:border-accent focus:outline-none"
+                    />
+                    <input
+                      value={ea.successCriteria}
+                      onChange={(e) =>
+                        setEditingActivities((prev) =>
+                          prev.map((a, j) =>
+                            j === i ? { ...a, successCriteria: e.target.value } : a
+                          )
+                        )
+                      }
+                      placeholder="Success criteria"
+                      className="w-full rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text placeholder-text-3 focus:border-accent focus:outline-none"
+                    />
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSaveEdit(section.sectionId, section)}
+                    disabled={saving}
+                    className="text-xs bg-accent text-white rounded-lg px-3 py-1.5 hover:bg-accent/80 transition-colors disabled:opacity-50 font-semibold"
+                  >
+                    {saving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                  <button
+                    onClick={() => setEditingSectionId(null)}
+                    className="text-xs bg-bg text-text-2 border border-border rounded-lg px-3 py-1.5 hover:bg-bg-2 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
           </div>

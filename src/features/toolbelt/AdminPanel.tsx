@@ -7,6 +7,8 @@ import ModelPicker from './ModelPicker';
 import OpenRouterPanel from './OpenRouterPanel';
 import ResourceDirectory from './ResourceDirectory';
 import LocalCompanionStatusPanel from './LocalCompanionStatusPanel';
+import ChangePinPanel from './ChangePinPanel';
+import AccountLinkPanel from '@/features/profile/AccountLinkPanel';
 
 type AdminTab = 'chat' | 'directory' | 'settings';
 
@@ -90,6 +92,10 @@ export default function AdminPanel() {
             </h3>
             <LocalCompanionStatusPanel />
           </section>
+
+          <ChangePinPanel />
+
+          <AccountLinkPanel />
         </div>
       )}
     </div>

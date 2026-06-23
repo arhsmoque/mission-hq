@@ -87,15 +87,6 @@ Full setup notes: `docs/local-gemini-companion.md`.
 - Gemini API Worker mode: governed by Gemini API quota/billing
 - Local Gemini CLI companion mode: governed by the signed-in Gemini CLI account/session limits
 
-## Local Mode
+## Storage
 
-A localStorage-only variant exists in `src/lib/localDb.ts`. It replaces Firebase with browser storage — useful for offline testing or family devices without internet access to Firebase.
-
-| Feature | Cloud (default) | Local mode |
-|---|---|---|
-| Auth | Firebase Anonymous | Auto-generated local uid |
-| Database | Firebase Realtime DB | `localStorage` |
-| Deploy | Cloudflare Pages | Any static host |
-| AI | Gemini API Worker or Local Gemini CLI companion | Manual/local-only workflows |
-
-To use local mode: swap `useMission.ts` and `useChat.ts` imports from `firebase/database` → `@/lib/localDb`. A `StorageAdapter` interface to make this switchable at runtime is a future ADR.
+All data is stored in Firebase Realtime Database under the authenticated user's UID. Anonymous auth is used by default — parents can promote their anonymous session to a permanent email account via the Admin panel (Settings → Save Account). This preserves all existing data under the same UID.

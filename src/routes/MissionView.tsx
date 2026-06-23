@@ -29,7 +29,9 @@ export default function MissionView() {
 
   const toggleModule = async (moduleId: number, current: boolean) => {
     if (!mission || !userUid || !profileId || !missionId) return;
-    const modules = mission.aiAnalysis.modules.map((m) =>
+    const existing = mission.aiAnalysis?.modules;
+    if (!Array.isArray(existing)) return;
+    const modules = existing.map((m) =>
       m.id === moduleId ? { ...m, isComplete: !current } : m
     );
     await missionStorage.updateMission(profileId, missionId, {
@@ -79,7 +81,8 @@ export default function MissionView() {
 
   const NODE_COLORS = ['#fda4af', '#86efac', '#7dd3fc'] as const;
 
-  const modules = mission.aiAnalysis?.modules || [];
+  const rawModules = mission.aiAnalysis?.modules;
+  const modules: Module[] = Array.isArray(rawModules) ? rawModules : [];
   const allComplete = modules.length > 0 && modules.every((m) => m.isComplete);
   const progress = modules.length > 0
     ? Math.round((modules.filter((m) => m.isComplete).length / modules.length) * 100)

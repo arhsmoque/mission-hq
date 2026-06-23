@@ -186,12 +186,12 @@ async function handleProxyImage(request: Request): Promise<Response> {
   } catch { referer = ''; }
 
   const res = await fetch(imageUrl, {
+    redirect: 'manual',
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       'Referer':    referer,
       'Accept':     'image/webp,image/apng,image/*,*/*;q=0.8',
     },
-    redirect: 'manual',
   });
 
   if (!res.ok) return json({ found: false }, res.status);
@@ -492,11 +492,11 @@ async function handleFetchPage(request: Request): Promise<Response> {
   }
 
   const res = await fetch(pageUrl, {
+    redirect: 'manual',
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       'Accept':     'text/html,application/xhtml+xml,*/*;q=0.9',
     },
-    redirect: 'manual',
   });
 
   if (!res.ok) return json({ error: `HTTP ${res.status}` }, res.status);

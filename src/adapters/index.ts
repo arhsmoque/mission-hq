@@ -42,7 +42,13 @@ async function isAnyCompanionOnline(): Promise<boolean> {
 
 // ── Active adapters ────────────────────────────────────────────────────────
 
-/** Runtime-dispatching AI proxy — reads aiProvider from store on each call. */
+/**
+ * Runtime-dispatching AI proxy.
+ * - chat: when a local companion is online, prefers geminiAdapter (direct, no quota cost).
+ *         Falls back to openrouterAdapter on failure or when companion is offline.
+ * - ocrImage: always tries geminiAdapter (vision Worker) first; local companion queue
+ *             does not support image input, so openrouter is the only fallback.
+ */
 export const aiAdapter: AIPort = {
   async chat(messages: AIChatMessage[], model: string, temperature?: number): Promise<string> {
     const isOnline = await isAnyCompanionOnline();

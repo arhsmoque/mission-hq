@@ -14,8 +14,8 @@ interface RawGeneratedMission {
   modules: RawGeneratedModule[];
 }
 
-function cleanText(value: string, fallback: string, maxLength = 500): string {
-  const cleaned = value.replace(/\s+/g, ' ').trim();
+function cleanText(value: string | null | undefined, fallback: string, maxLength = 500): string {
+  const cleaned = (value ?? '').replace(/\s+/g, ' ').trim();
   return (cleaned || fallback).slice(0, maxLength);
 }
 

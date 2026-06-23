@@ -15,8 +15,8 @@ import { z } from 'zod';
 import { LESSON_ACTIVITY_TYPES } from '@/types';
 import type { ResourceEntry, TeachingMethod, LessonSection, LessonTocEntry, LessonActivity, EvaluationAttempt } from '@/types';
 
-const GEN_MODEL   = 'gemini-2.5-flash';
-const EVAL_MODEL  = 'gemini-2.5-pro';
+const GEN_MODEL  = 'gemini-2.5-flash';
+const EVAL_MODEL = 'gemini-2.5-pro';   // separate model avoids circular self-grading
 const MAX_RETRIES = 2;
 
 // ── Zod schema for generated section output ──────────────────────────────────
