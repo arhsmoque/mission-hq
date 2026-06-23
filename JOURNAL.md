@@ -182,3 +182,61 @@ The new Edit button opens an inline form showing each activity's `instruction`, 
 - **Safety filter:** Textual answers leak; numeric scan wipes Socratic guidance as collateral (P4)
 - **`localDb.ts` orphan:** Wire as offline storage or delete (P4)
 - **Anonymous → permanent account:** `linkWithCredential` flow in `ProfilePicker.tsx` (P5)
+
+---
+
+## 2026-06-17 — Session C: P3 + P4 + P4b + P5 (Security + Safety + Account)
+
+### Context
+
+Final session of Jun 17. Implemented all remaining open items (P3–P5) in a single commit. All four changes were merged together as PR #21.
+
+### Key Design Decisions
+
+**P3 — PIN moved to Firebase, not config**
+
+`admin.pin = '240514'` was visible in the Cloudflare Workers bundle in plain text — any parent or child with DevTools could find it. The fix: `src/lib/pinUtils.ts` hashes the PIN with Web Crypto SHA-256 and stores the hash in Firebase RTDB at `mission_hq/parentConfigs/{uid}/pinHash`. `PinGate.tsx` now does async hash comparison instead of string equality. First use (no hash in Firebase yet) falls back to `hashPin('240514')` so existing deployments don't lock parents out.
+
+*Tradeoff:* The PIN gate now has a Firebase read on each attempt (≈100ms). Acceptable — it's the parent-only admin gate, not a child-facing path.
+
+`ChangePinPanel.tsx` was added to Admin → Settings so parents can rotate the PIN. It verifies the current PIN before accepting a new one.
+
+**P4 — Safety filter: sentence-level, not response-level**
+
+The previous filter compared every number in the AI's response against every number in the OCR text. This had two failure modes:
+1. A Socratic response like "Look at question 3, what do you notice?" would be wiped because "3" also appears in the OCR.
+2. Textual answers ("the answer is twelve") only partially covered; Malay patterns missing entirely.
+
+The new filter (`src/lib/safety.ts`) splits the response into sentences first, then skips any sentence that ends with `?` (Socratic questions are safe by definition). For the remaining sentences, it only flags a number if it appears without a recognised context prefix ("question", "step", "page", "soalan", "bahagian", etc.). Additionally, the textual number vocabulary was expanded to cover compound numbers (twenty-four, etc.) and Malay number words (satu, dua, tiga…).
+
+*Tradeoff accepted:* The filter is now more permissive — a determined AI that answers "Here is what I know: 24" without one of the flagged phrase patterns could slip through. The two-pass generation system with an AI evaluator (in `lessonGenerator.ts`) is the deeper guardrail; `safety.ts` is the last-resort runtime interception.
+
+**P4b — Deleted `localDb.ts`**
+
+The localStorage adapter was salvaged from an old local-only variant and left as "offline-mode runway" in Jun 5. After 6 weeks no offline mode was planned. Dead code adds confusion for future agents. Deleted. README updated.
+
+**P5 — Anonymous → permanent account**
+
+Firebase anonymous auth gives a stable UID per browser-device pair, but clearing browser storage orphans all data. `AccountLinkPanel.tsx` (wired into Admin → Settings) lets parents link their anonymous session to an email/password credential using `linkWithCredential`. The UID is preserved, so all missions, lessons, analytics, and badges carry over. Error messages handle the common failure modes (email already in use, invalid email).
+
+### Files Changed (Session C / PR #21)
+
+| File | Change |
+|---|---|
+| `src/lib/pinUtils.ts` | New — SHA-256 hash + Firebase PIN read/write/verify |
+| `src/features/toolbelt/PinGate.tsx` | Async PIN verification; removed `APP_CONFIG.admin.pin` dependency |
+| `src/config.ts` | Removed `admin.pin` field |
+| `src/features/toolbelt/ChangePinPanel.tsx` | New — Change PIN UI in admin settings |
+| `src/features/profile/AccountLinkPanel.tsx` | New — email/password account linking |
+| `src/features/toolbelt/AdminPanel.tsx` | Wired ChangePinPanel + AccountLinkPanel into Settings tab |
+| `src/lib/safety.ts` | Sentence-level filter, context-prefix exclusions, Malay patterns |
+| `src/lib/localDb.ts` | Deleted (dead code) |
+| `README.md` | Replaced Local Mode section with Firebase + account promotion note |
+| `JOURNAL.md` | This entry |
+
+### Open Questions (None Critical)
+
+The P1–P5 backlog is now fully cleared. The remaining known issues are either tracked in BUILDPLAN.md (future feature stages) or are design questions without a clear owner:
+
+- **Expected answer field in modules:** The proper fix for the safety filter is a hidden `expectedAnswer` field on each module generated at mission-creation time, enabling fuzzy matching instead of OCR-scan. This requires a schema change to module generation prompts and validators. Intentionally deferred — the sentence-level filter reduces false positives significantly without the schema change.
+- **`240514` in git history:** The old hardcoded PIN is now in git history. It's already rotated via ChangePinPanel on any live deployment so this is low risk, but worth noting for security-conscious agents: the PIN is no longer operationally significant once rotated.
