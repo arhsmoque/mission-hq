@@ -132,7 +132,6 @@ function AgendaCard({
 
 export default function TodayScreen() {
   const navigate    = useNavigate();
-  const user        = useRootStore((s) => s.user);
   const profileId   = useRootStore((s) => s.profileId);
   const profile     = PROFILES.find((p) => p.id === profileId);
 
@@ -148,14 +147,24 @@ export default function TodayScreen() {
     setLoading(true);
     const [ag, totalXp] = await Promise.all([
       buildDailyAgenda(profileId),
-      user?.uid ? getXP(user.uid) : Promise.resolve(0),
+      profileId ? getXP(profileId) : Promise.resolve(0),
     ]);
     setAgenda(ag);
     setXp(totalXp);
     setLoading(false);
-  }, [profileId, user?.uid]);
+  }, [profileId]);
 
-  useEffect(() => { loadAgenda(); }, [loadAgenda]);
+  useEffect(() => {
+    if (!profileId) return;
+    let cancelled = false;
+    Promise.all([buildDailyAgenda(profileId), getXP(profileId)]).then(([ag, totalXp]) => {
+      if (cancelled) return;
+      setAgenda(ag);
+      setXp(totalXp);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [profileId]);
 
   function startActivity(item: AgendaItem, type: SessionActivityType) {
     setView({ mode: 'activity', item, activityType: type });
@@ -169,11 +178,11 @@ export default function TodayScreen() {
       return { ...prev, [key]: next };
     });
     // Award XP immediately
-    if (user?.uid) {
+    if (profileId) {
       const earned = type === 'quiz' && score != null
         ? 15 + Math.round(30 * (score / 100))
         : ACTIVITY_XP[type];
-      const newTotal = await addXP(user.uid, earned);
+      const newTotal = await addXP(profileId, earned);
       setXp(newTotal);
     }
     setView({ mode: 'agenda' });

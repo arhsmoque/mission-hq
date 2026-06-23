@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRootStore } from '@/stores/rootStore';
 import { generateMissionId } from '@/lib/utils';
 import { aiAdapter, missionStorage } from '@/adapters';
@@ -6,41 +6,44 @@ import { buildModuleGenPrompt } from '@/lib/prompts';
 import { moduleSchema } from '@/lib/validators';
 import { buildBasicMissionFromOcr, normalizeGeneratedMission } from './missionGeneration';
 import type { Mission, Module } from '@/types';
+import { useState, useEffect } from 'react';
 
-/** Subscribe to a single mission. Resolves once on load; mutations invalidate to refresh. */
+/** Subscribe to a single mission in real-time. */
 export function useMission(missionId: string) {
-  const user = useRootStore((s) => s.user);
-  return useQuery({
-    queryKey: ['mission', user?.uid, missionId],
-    queryFn: () =>
-      new Promise<Mission | null>((resolve) => {
-        if (!user?.uid) return resolve(null);
-        const unsub = missionStorage.subscribeMission(user.uid, missionId, (m) => {
-          resolve(m);
-          unsub();
-        });
-      }),
-    staleTime: Infinity,
-    enabled: !!user?.uid && !!missionId,
-  });
+  const userUid   = useRootStore((s) => s.user?.uid);
+  const profileId = useRootStore((s) => s.profileId);
+  const [mission,   setMission]   = useState<Mission | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userUid || !profileId || !missionId) return;
+    const unsub = missionStorage.subscribeMission(profileId, missionId, (m) => {
+      setMission(m);
+      setIsLoading(false);
+    });
+    return unsub;
+  }, [userUid, profileId, missionId]);
+
+  return { data: mission, isLoading };
 }
 
-/** Subscribe to all missions for the active user. */
+/** Subscribe to all missions for the active profile in real-time. */
 export function useAllMissions() {
-  const user = useRootStore((s) => s.user);
-  return useQuery({
-    queryKey: ['missions', user?.uid],
-    queryFn: () =>
-      new Promise<Mission[]>((resolve) => {
-        if (!user?.uid) return resolve([]);
-        const unsub = missionStorage.subscribeAllMissions(user.uid, (ms) => {
-          resolve(ms);
-          unsub();
-        });
-      }),
-    staleTime: Infinity,
-    enabled: !!user?.uid,
-  });
+  const userUid   = useRootStore((s) => s.user?.uid);
+  const profileId = useRootStore((s) => s.profileId);
+  const [missions,  setMissions]  = useState<Mission[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userUid || !profileId) return;
+    const unsub = missionStorage.subscribeAllMissions(profileId, (ms) => {
+      setMissions(ms);
+      setIsLoading(false);
+    });
+    return unsub;
+  }, [userUid, profileId]);
+
+  return { data: missions, isLoading };
 }
 
 interface CreateMissionInput {
@@ -50,15 +53,14 @@ interface CreateMissionInput {
 }
 
 export function useCreateMission() {
-  const user = useRootStore((s) => s.user);
+  const user      = useRootStore((s) => s.user);
   const profileId = useRootStore((s) => s.profileId);
-
   return useMutation({
     mutationFn: async (input: CreateMissionInput): Promise<string> => {
-      if (!user?.uid) throw new Error('Not authenticated');
+      if (!user?.uid || !profileId) throw new Error('Not authenticated');
       const missionId = generateMissionId();
-      await missionStorage.createMission(user.uid, missionId, {
-        profileId: profileId ?? '',
+      await missionStorage.createMission(profileId, missionId, {
+        profileId,
         title: 'Untitled Mission',
         client: 'Cikgu',
         status: 'pending',
@@ -91,14 +93,15 @@ async function tryGenerate(ocrText: string, model: string, temperature: number) 
 
 export function useGenerateModules() {
   const queryClient = useQueryClient();
-  const user = useRootStore((s) => s.user);
+  const user        = useRootStore((s) => s.user);
+  const profileId   = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: GenerateModulesInput) => {
-      if (!user?.uid) throw new Error('Not authenticated');
+      if (!user?.uid || !profileId) throw new Error('Not authenticated');
 
       const save = async (result: { missionTitle: string; modules: Module[] }) => {
-        await missionStorage.updateMission(user.uid, input.missionId, {
+        await missionStorage.updateMission(profileId, input.missionId, {
           title: result.missionTitle,
           status: 'active',
           'aiAnalysis/model': input.model,
@@ -124,8 +127,8 @@ export function useGenerateModules() {
       return await save(buildBasicMissionFromOcr(input.ocrText));
     },
     onSuccess: (_, input) => {
-      const uid = useRootStore.getState().user?.uid;
-      queryClient.invalidateQueries({ queryKey: ['mission', uid, input.missionId] });
+      const pid = useRootStore.getState().profileId;
+      queryClient.invalidateQueries({ queryKey: ['mission', pid, input.missionId] });
     },
   });
 }
@@ -137,12 +140,13 @@ interface CompleteMissionInput {
 
 export function useCompleteMission() {
   const queryClient = useQueryClient();
-  const user = useRootStore((s) => s.user);
+  const user        = useRootStore((s) => s.user);
+  const profileId   = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: CompleteMissionInput) => {
-      if (!user?.uid) throw new Error('Not authenticated');
-      await missionStorage.updateMission(user.uid, input.missionId, {
+      if (!user?.uid || !profileId) throw new Error('Not authenticated');
+      await missionStorage.updateMission(profileId, input.missionId, {
         status: 'completed',
         completedAt: Date.now(),
         'aiAnalysis/modules': input.modules,
@@ -151,8 +155,8 @@ export function useCompleteMission() {
       return { badgeId: completedCount >= 5 ? 'mission_master' : 'first_win' };
     },
     onSuccess: (_, input) => {
-      const uid = useRootStore.getState().user?.uid;
-      queryClient.invalidateQueries({ queryKey: ['mission', uid, input.missionId] });
+      const pid = useRootStore.getState().profileId;
+      queryClient.invalidateQueries({ queryKey: ['mission', pid, input.missionId] });
     },
   });
 }

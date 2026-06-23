@@ -12,6 +12,10 @@
  * aiAdapter is a runtime proxy — dispatches to the provider selected in store.
  */
 
+import { get, ref } from 'firebase/database';
+import { rtdb } from '@/lib/firebase';
+import { isCompanionFresh, type LocalCompanionStatus } from '@/lib/localCompanionStatus';
+import { agyAdapter } from './ai/agy-adapter';
 import { geminiAdapter }                                                    from './ai/gemini-adapter';
 import { openrouterAdapter }                                                from './ai/openrouter-adapter';
 import { firebaseMissionAdapter, firebaseChatAdapter }                     from './storage/firebase-rtdb-adapter';
@@ -20,25 +24,49 @@ import { firebaseLessonsAdapter }                                           from
 import { firebaseAnalyticsAdapter }                                         from './analytics/firebase-analytics-adapter';
 import { firebaseResourcesAdapter }                                         from './storage/firebase-resources-adapter';
 import { firebaseCampaignsAdapter, firebaseSessionContentAdapter }         from './storage/firebase-campaigns-adapter';
-import { useRootStore }                                                     from '@/stores/rootStore';
 import type { AIPort, AIChatMessage, OcrResult }                            from '@/ports/ai-port';
 
 export { getPageSlice, splitExtractedPages } from './storage/firebase-resources-adapter';
 
-function getActiveAiAdapter(): AIPort {
-  const { aiProvider } = useRootStore.getState();
-  return aiProvider === 'openrouter' ? openrouterAdapter : geminiAdapter;
+async function isAnyCompanionOnline(): Promise<boolean> {
+  try {
+    const snap = await get(ref(rtdb, 'mission_hq/aiCompanions'));
+    if (!snap.exists()) return false;
+    const val = snap.val() as Record<string, LocalCompanionStatus>;
+    return Object.values(val).some((c) => isCompanionFresh(c));
+  } catch (err) {
+    console.error('[Companion Check] Failed to check companion status:', err);
+    return false;
+  }
 }
 
 // ── Active adapters ────────────────────────────────────────────────────────
 
 /** Runtime-dispatching AI proxy — reads aiProvider from store on each call. */
 export const aiAdapter: AIPort = {
-  chat(messages: AIChatMessage[], model: string, temperature?: number): Promise<string> {
-    return getActiveAiAdapter().chat(messages, model, temperature);
+  async chat(messages: AIChatMessage[], model: string, temperature?: number): Promise<string> {
+    const isOnline = await isAnyCompanionOnline();
+    if (isOnline) {
+      try {
+        console.log('[aiAdapter] Routing chat via local agy companion...');
+        return await agyAdapter.chat(messages, model, temperature);
+      } catch (err) {
+        console.warn('[aiAdapter] Local agy companion chat failed, falling back to openrouter:', err);
+        return await openrouterAdapter.chat(messages, model, temperature);
+      }
+    }
+    console.log('[aiAdapter] Local companion offline, routing chat directly to openrouter...');
+    return await openrouterAdapter.chat(messages, model, temperature);
   },
-  ocrImage(imageBase64: string, mimeType: string): Promise<OcrResult> {
-    return getActiveAiAdapter().ocrImage(imageBase64, mimeType);
+
+  async ocrImage(imageBase64: string, mimeType: string): Promise<OcrResult> {
+    try {
+      console.log('[aiAdapter] Trying direct Gemini OCR via Worker...');
+      return await geminiAdapter.ocrImage(imageBase64, mimeType);
+    } catch (err) {
+      console.warn('[aiAdapter] Direct Gemini OCR failed, falling back to openrouter OCR:', err);
+      return await openrouterAdapter.ocrImage(imageBase64, mimeType);
+    }
   },
 };
 

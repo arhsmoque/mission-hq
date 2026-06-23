@@ -38,3 +38,4 @@ export const AVAILABLE_MODELS: LlmModel[] = [
 ];
 
 export const DEFAULT_MODEL_ID = 'gemini-2.5-flash';
+export const FREE_FALLBACK_MODEL_ID = 'deepseek/deepseek-chat-v3-0324:free';

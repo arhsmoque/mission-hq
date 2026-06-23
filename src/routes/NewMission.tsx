@@ -5,6 +5,8 @@ import OcrPreview from '@/features/mission/OcrPreview';
 import { runOcr, type OcrResult } from '@/lib/ocr';
 import { useCreateMission, useGenerateModules } from '@/features/mission/useMission';
 import { useRootStore } from '@/stores/rootStore';
+import { aiAdapter } from '@/adapters';
+import { buildChinesePrompt } from '@/lib/prompts';
 
 type Step = 'upload' | 'processing' | 'preview' | 'creating' | 'generating';
 
@@ -32,6 +34,18 @@ export default function NewMission() {
     }
   }, []);
 
+  const handleTranslate = useCallback(async (text: string): Promise<string> => {
+    const messages = buildChinesePrompt(text.slice(0, 2000), 'translate');
+    const raw = await aiAdapter.chat(messages, selectedModel, 0.3);
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw) as { english?: string };
+      return parsed.english ?? raw;
+    } catch {
+      return raw;
+    }
+  }, [selectedModel]);
+
   const handleConfirm = useCallback(
     async (editedText: string) => {
       setStep('creating');
@@ -54,7 +68,7 @@ export default function NewMission() {
         setStep('preview');
       }
     },
-    [createMission, generateModules, navigate, ocrResult.confidence, selectedModel]
+    [createMission, generateModules, navigate, ocrResult.confidence, ocrResult.engine, selectedModel]
   );
 
   const handleRetry = useCallback(() => {
@@ -91,6 +105,7 @@ export default function NewMission() {
           confidence={ocrResult.confidence}
           onConfirm={handleConfirm}
           onRetry={handleRetry}
+          onTranslate={handleTranslate}
         />
       )}
 

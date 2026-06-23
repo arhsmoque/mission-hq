@@ -14,7 +14,8 @@ export default function MissionView() {
   const navigate = useNavigate();
   const { data: mission, isLoading } = useMission(missionId || '');
   const completeMission = useCompleteMission();
-  const { addBadge, unlockGadget, user } = useRootStore();
+  const { addBadge, unlockGadget, user, profileId } = useRootStore();
+  const userUid = user?.uid;
 
   const [chatOpen, setChatOpen] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
@@ -27,11 +28,11 @@ export default function MissionView() {
   };
 
   const toggleModule = async (moduleId: number, current: boolean) => {
-    if (!mission || !user?.uid || !missionId) return;
+    if (!mission || !userUid || !profileId || !missionId) return;
     const modules = mission.aiAnalysis.modules.map((m) =>
       m.id === moduleId ? { ...m, isComplete: !current } : m
     );
-    await missionStorage.updateMission(user.uid, missionId, {
+    await missionStorage.updateMission(profileId, missionId, {
       'aiAnalysis/modules': modules,
     });
     if (modules.every((m) => m.isComplete) && !showComplete) {
@@ -43,16 +44,16 @@ export default function MissionView() {
     const result = await completeMission.mutateAsync({ missionId: missionId!, modules });
     addBadge(result.badgeId);
     unlockGadget('vocab_definer');
-    if (user?.uid) {
+    if (profileId) {
       const state = useRootStore.getState();
-      persistGamification(user.uid, state.earnedBadges, state.unlockedGadgets);
+      persistGamification(profileId, state.earnedBadges, state.unlockedGadgets);
     }
     setShowComplete(true);
   };
 
   const handleReorder = async (modules: Module[]) => {
-    if (!mission || !user?.uid || !missionId) return;
-    await missionStorage.updateMission(user.uid, missionId, {
+    if (!mission || !userUid || !profileId || !missionId) return;
+    await missionStorage.updateMission(profileId, missionId, {
       'aiAnalysis/modules': modules,
     });
   };

@@ -77,23 +77,26 @@ export async function executeDirectoryAction(
   if (action.action === 'add') {
     const source = detectSource(action.url);
     const entry: Omit<ResourceEntry, 'resourceId'> = {
-      url:         action.url.trim(),
-      label:       action.label,
-      sourceType:  source.type,
-      schoolType:  action.schoolType,
-      subject:     action.subject,
-      yearLevel:   action.yearLevel,
-      description: action.description,
-      status:      'pending',
+      url:        action.url.trim(),
+      label:      action.label,
+      sourceType: source.type,
+      schoolType: action.schoolType,
+      subject:    action.subject,
+      yearLevel:  action.yearLevel,
+      status:     'pending',
       addedBy,
-      addedAt:     Date.now(),
+      addedAt:    Date.now(),
+      ...(action.description !== undefined && { description: action.description }),
     };
     const id = await resourceDirectory.addResource(entry);
     return `Added "${action.label}" — ID: ${id}`;
   }
 
   if (action.action === 'edit') {
-    const { action: _a, resourceId, ...patch } = action;
+    const { action: _a, resourceId, ...rawPatch } = action;
+    const patch = Object.fromEntries(
+      Object.entries(rawPatch).filter(([, v]) => v !== undefined)
+    ) as Partial<ResourceEntry>;
     await resourceDirectory.updateResource(resourceId, patch);
     return `Updated "${resourceId}"`;
   }

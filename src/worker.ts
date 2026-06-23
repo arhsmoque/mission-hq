@@ -191,6 +191,7 @@ async function handleProxyImage(request: Request): Promise<Response> {
       'Referer':    referer,
       'Accept':     'image/webp,image/apng,image/*,*/*;q=0.8',
     },
+    redirect: 'manual',
   });
 
   if (!res.ok) return json({ found: false }, res.status);
@@ -209,41 +210,98 @@ async function handleExtractPages(request: Request, env: Env): Promise<Response>
     prompt: string;
   };
 
-  if (!env.GEMINI_API_KEY) return json({ error: 'GEMINI_API_KEY not configured' }, 500);
-  if (!pages?.length)      return json({ error: 'pages array required' }, 400);
+  if (!pages?.length) return json({ error: 'pages array required' }, 400);
 
-  const parts = [
-    ...pages.map((p) => ({ inlineData: { mimeType: p.mimeType, data: p.base64 } })),
-    { text: prompt },
-  ];
-
-  const payload = {
-    contents:         [{ role: 'user', parts }],
-    generationConfig: { temperature: 0 },
+  const callGeminiDirect = async (): Promise<Response> => {
+    if (!env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured');
+    const parts = [
+      ...pages.map((p) => ({ inlineData: { mimeType: p.mimeType, data: p.base64 } })),
+      { text: prompt },
+    ];
+    const payload = {
+      contents:         [{ role: 'user', parts }],
+      generationConfig: { temperature: 0 },
+    };
+    return fetch(`${GEMINI_BASE}/${model}:generateContent`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+      body:    JSON.stringify(payload),
+    });
   };
 
-  const res = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
-    body:    JSON.stringify(payload),
-  });
+  const callOpenRouter = async (): Promise<Response> => {
+    if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not configured');
+    const orBody = {
+      model: 'google/gemini-2.5-flash',
+      fallback_models: ['openrouter/auto'],
+      messages: [{
+        role: 'user',
+        content: [
+          ...pages.map((p) => ({ type: 'image_url', image_url: { url: `data:${p.mimeType};base64,${p.base64}` } })),
+          { type: 'text', text: prompt }
+        ]
+      }],
+      temperature: 0,
+      provider: { sort: 'latency', allow_fallbacks: true }
+    };
+    return fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method:  'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://mission-hq.arh-homelab.workers.dev',
+        'X-Title':      'Mission HQ',
+      },
+      body: JSON.stringify(orBody),
+    });
+  };
+
+  let res: Response;
+  let usedFallback = false;
+
+  try {
+    res = await callGeminiDirect();
+    if (!res.ok) {
+      console.warn(`[Worker] Direct Gemini extract-pages failed with status ${res.status}. Trying OpenRouter fallback...`);
+      res = await callOpenRouter();
+      usedFallback = true;
+    }
+  } catch (err) {
+    console.warn('[Worker] Direct Gemini extract-pages threw error. Trying OpenRouter fallback...', err);
+    try {
+      res = await callOpenRouter();
+      usedFallback = true;
+    } catch (fallbackErr) {
+      return json({ error: `Direct: ${String(err)}. Fallback: ${String(fallbackErr)}` }, 500);
+    }
+  }
 
   if (!res.ok) return json({ error: await res.text() }, res.status);
 
-  const data = await res.json() as {
-    candidates?:    Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
-  };
-  const text  = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  const usage = data.usageMetadata;
-  return json({
-    text,
-    tokens: usage ? {
-      prompt:     usage.promptTokenCount     ?? 0,
-      completion: usage.candidatesTokenCount ?? 0,
-      total:      usage.totalTokenCount      ?? 0,
-    } : undefined,
-  });
+  if (usedFallback) {
+    const data = await res.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+      error?:   { message?: string };
+    };
+    if (data.error?.message) return json({ error: data.error.message }, 500);
+    const text = data.choices?.[0]?.message?.content ?? '';
+    return json({ text });
+  } else {
+    const data = await res.json() as {
+      candidates?:    Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number };
+    };
+    const text  = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const usage = data.usageMetadata;
+    return json({
+      text,
+      tokens: usage ? {
+        prompt:     usage.promptTokenCount     ?? 0,
+        completion: usage.candidatesTokenCount ?? 0,
+        total:      usage.totalTokenCount      ?? 0,
+      } : undefined,
+    });
+  }
 }
 
 // ── OpenRouter handlers ────────────────────────────────────────────────────
@@ -438,6 +496,7 @@ async function handleFetchPage(request: Request): Promise<Response> {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       'Accept':     'text/html,application/xhtml+xml,*/*;q=0.9',
     },
+    redirect: 'manual',
   });
 
   if (!res.ok) return json({ error: `HTTP ${res.status}` }, res.status);

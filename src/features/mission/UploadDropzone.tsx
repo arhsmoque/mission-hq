@@ -1,18 +1,41 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 interface UploadDropzoneProps {
   onFileSelect: (file: File, previewUrl: string) => void;
   disabled?: boolean;
 }
 
+const ACCEPTED_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+function isAccepted(file: File): boolean {
+  return ACCEPTED_TYPES.has(file.type) || file.name.toLowerCase().endsWith('.docx');
+}
+
+function previewUrlFor(file: File): string {
+  if (file.name.toLowerCase().endsWith('.docx') ||
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    return '';
+  }
+  return URL.createObjectURL(file);
+}
+
 export default function UploadDropzone({ onFileSelect, disabled }: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(
     (file: File) => {
-      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') return;
-      const url = URL.createObjectURL(file);
-      onFileSelect(file, url);
+      if (!isAccepted(file)) return;
+      onFileSelect(file, previewUrlFor(file));
     },
     [onFileSelect]
   );
@@ -28,14 +51,6 @@ export default function UploadDropzone({ onFileSelect, disabled }: UploadDropzon
     [disabled, handleFile]
   );
 
-  const onChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file);
-    },
-    [handleFile]
-  );
-
   return (
     <div
       onDragOver={(e) => {
@@ -45,26 +60,60 @@ export default function UploadDropzone({ onFileSelect, disabled }: UploadDropzon
       onDragLeave={() => setIsDragging(false)}
       onDrop={onDrop}
       className={`
-        relative rounded-2xl border-2 border-dashed p-12 text-center transition-all
+        rounded-2xl border-2 border-dashed p-8 text-center transition-all space-y-6
         ${isDragging ? 'border-accent bg-accent/5' : 'border-border bg-surface'}
         ${disabled ? 'opacity-50 pointer-events-none' : ''}
       `}
     >
+      {/* Hidden inputs */}
       <input
+        ref={cameraRef}
         type="file"
-        accept="image/*,.pdf"
+        accept="image/*"
         capture="environment"
-        onChange={onChange}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }}
         disabled={disabled}
-        className="absolute inset-0 cursor-pointer opacity-0"
+        className="hidden"
       />
-      <div className="text-4xl mb-3">📸</div>
-      <p className="font-semibold text-primary">
-        {isDragging ? 'Drop it here!' : 'Tap to take a photo'}
-      </p>
-      <p className="text-sm text-text-3 mt-1">
-        Or drag & drop an image / PDF
-      </p>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }}
+        disabled={disabled}
+        className="hidden"
+      />
+
+      {isDragging ? (
+        <p className="font-semibold text-accent text-lg">Drop it here!</p>
+      ) : (
+        <>
+          <p className="text-sm text-text-3">
+            Drag & drop a file here, or use the buttons below
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              disabled={disabled}
+              className="flex-1 flex flex-col items-center gap-2 rounded-2xl bg-bg-2 border border-border px-4 py-5 font-semibold text-text-2 active:scale-[0.97] transition-transform disabled:opacity-50"
+            >
+              <span className="text-3xl">📸</span>
+              <span className="text-sm">Take Photo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={disabled}
+              className="flex-1 flex flex-col items-center gap-2 rounded-2xl bg-bg-2 border border-border px-4 py-5 font-semibold text-text-2 active:scale-[0.97] transition-transform disabled:opacity-50"
+            >
+              <span className="text-3xl">📄</span>
+              <span className="text-sm">Upload File</span>
+              <span className="text-xs text-text-3">PDF · DOCX · JPG</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

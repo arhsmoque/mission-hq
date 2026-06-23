@@ -6,6 +6,7 @@ interface OcrPreviewProps {
   confidence: number;
   onConfirm: (editedText: string) => void;
   onRetry: () => void;
+  onTranslate: (text: string) => Promise<string>;
 }
 
 export default function OcrPreview({
@@ -14,20 +15,40 @@ export default function OcrPreview({
   confidence,
   onConfirm,
   onRetry,
+  onTranslate,
 }: OcrPreviewProps) {
   const [text, setText] = useState(initialText);
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+
   const confidenceOk = confidence >= 85;
   const canBuild = text.trim().length > 0;
 
+  const handleTranslate = async () => {
+    if (!text.trim()) return;
+    setTranslating(true);
+    setTranslation(null);
+    try {
+      const result = await onTranslate(text.trim());
+      setTranslation(result);
+    } catch {
+      setTranslation('Translation failed. Please try again.');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl overflow-hidden bg-surface border border-border">
-        <img
-          src={previewUrl}
-          alt="Worksheet preview"
-          className="w-full max-h-64 object-contain"
-        />
-      </div>
+      {previewUrl && (
+        <div className="rounded-2xl overflow-hidden bg-surface border border-border">
+          <img
+            src={previewUrl}
+            alt="Worksheet preview"
+            className="w-full max-h-64 object-contain"
+          />
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <span
@@ -37,9 +58,9 @@ export default function OcrPreview({
               : 'bg-red/10 text-red'
           }`}
         >
-          OCR Confidence: {Math.round(confidence)}%
+          {confidence === 100 ? 'Document Extracted' : `OCR Confidence: ${Math.round(confidence)}%`}
         </span>
-        {!confidenceOk && (
+        {!confidenceOk && confidence < 100 && (
           <span className="text-xs text-red font-medium">
             Low confidence — you may want to retake the photo
           </span>
@@ -52,11 +73,27 @@ export default function OcrPreview({
         </label>
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => { setText(e.target.value); setTranslation(null); }}
           rows={6}
           className="w-full rounded-xl border border-border bg-surface p-3 text-sm text-text focus:border-accent focus:outline-none resize-y"
         />
       </div>
+
+      {/* Translate to English */}
+      <button
+        onClick={handleTranslate}
+        disabled={translating || !text.trim()}
+        className="w-full rounded-xl border border-border bg-bg-2 py-2.5 text-sm font-semibold text-text-2 active:scale-[0.98] disabled:opacity-50"
+      >
+        {translating ? 'Translating...' : '🈳 Translate to English'}
+      </button>
+
+      {translation !== null && (
+        <div className="rounded-xl border border-border bg-surface p-4 space-y-1">
+          <p className="text-xs font-semibold text-text-3 uppercase tracking-wide">English Translation</p>
+          <p className="text-sm text-text whitespace-pre-wrap">{translation}</p>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button

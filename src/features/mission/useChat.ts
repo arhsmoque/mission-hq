@@ -1,27 +1,29 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { auth } from '@/lib/firebase';
 import { useRootStore } from '@/stores/rootStore';
 import { aiAdapter, chatStorage } from '@/adapters';
 import { buildChatPrompt } from '@/lib/prompts';
 import { sanitizeResponse } from '@/lib/safety';
 import type { ChatMessage } from '@/types';
+import { useState, useEffect } from 'react';
 
-/** Subscribe to all chat messages for a mission. Resolves once; mutations invalidate to refresh. */
+/** Subscribe to all chat messages for a mission in real-time. */
 export function useChatMessages(missionId: string) {
-  const user = useRootStore((s) => s.user);
-  return useQuery({
-    queryKey: ['chatMessages', user?.uid, missionId],
-    queryFn: () =>
-      new Promise<ChatMessage[]>((resolve) => {
-        if (!user?.uid) return resolve([]);
-        const unsub = chatStorage.subscribeMessages(user.uid, missionId, (msgs) => {
-          resolve(msgs);
-          unsub();
-        });
-      }),
-    staleTime: Infinity,
-    enabled: !!user?.uid && !!missionId,
-  });
+  const userUid   = useRootStore((s) => s.user?.uid);
+  const profileId = useRootStore((s) => s.profileId);
+  const [messages,  setMessages]  = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userUid || !profileId || !missionId) return;
+    const unsub = chatStorage.subscribeMessages(profileId, missionId, (msgs) => {
+      setMessages(msgs);
+      setIsLoading(false);
+    });
+    return unsub;
+  }, [userUid, profileId, missionId]);
+
+  return { data: messages, isLoading };
 }
 
 interface SendMessageInput {
@@ -39,29 +41,30 @@ interface SendMessageInput {
 
 export function useSendMessage() {
   const queryClient = useQueryClient();
-  const user = useRootStore((s) => s.user);
+  const user        = useRootStore((s) => s.user);
+  const profileId   = useRootStore((s) => s.profileId);
 
   return useMutation({
     mutationFn: async (input: SendMessageInput) => {
-      if (!auth.currentUser || !user?.uid) throw new Error('Not authenticated');
+      if (!auth.currentUser || !user?.uid || !profileId) throw new Error('Not authenticated');
 
       const userMsg: Omit<ChatMessage, 'msgId'> = {
-        role:      'user',
-        content:   input.content,
-        moduleId:  input.moduleId ?? undefined,
+        role:       'user',
+        content:    input.content,
+        moduleId:   input.moduleId ?? undefined,
         gadgetUsed: input.gadgetContext || undefined,
-        modelUsed: input.model,
-        timestamp: Date.now(),
+        modelUsed:  input.model,
+        timestamp:  Date.now(),
       };
-      await chatStorage.addMessage(user.uid, input.missionId, userMsg);
+      await chatStorage.addMessage(profileId, input.missionId, userMsg);
 
-      const lastMessages = await chatStorage.getRecentMessages(user.uid, input.missionId, 10);
+      const lastMessages = await chatStorage.getRecentMessages(profileId, input.missionId, 10);
 
       const promptMessages = buildChatPrompt({
-        ocrText:     input.ocrText,
-        moduleTitle: input.moduleTitle,
-        moduleGoal:  input.moduleGoal,
-        gadgetContext: input.gadgetContext,
+        ocrText:               input.ocrText,
+        moduleTitle:           input.moduleTitle,
+        moduleGoal:            input.moduleGoal,
+        gadgetContext:         input.gadgetContext,
         tutoringPolicyContext: input.tutoringPolicyContext,
         lastMessages,
       });
@@ -73,20 +76,20 @@ export function useSendMessage() {
         : sanitizeResponse(rawResponse, input.ocrText);
 
       const assistantMsg: Omit<ChatMessage, 'msgId'> = {
-        role:      'assistant',
-        content:   safeResponse,
-        moduleId:  input.moduleId ?? undefined,
+        role:       'assistant',
+        content:    safeResponse,
+        moduleId:   input.moduleId ?? undefined,
         gadgetUsed: input.gadgetContext || undefined,
-        modelUsed: input.model,
-        timestamp: Date.now(),
+        modelUsed:  input.model,
+        timestamp:  Date.now(),
       };
-      await chatStorage.addMessage(user.uid, input.missionId, assistantMsg);
+      await chatStorage.addMessage(profileId, input.missionId, assistantMsg);
 
       return { success: true };
     },
     onSuccess: (_, input) => {
-      const uid = useRootStore.getState().user?.uid;
-      queryClient.invalidateQueries({ queryKey: ['chatMessages', uid, input.missionId] });
+      const pid = useRootStore.getState().profileId;
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', pid, input.missionId] });
     },
   });
 }

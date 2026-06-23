@@ -16,6 +16,7 @@ import { LESSON_ACTIVITY_TYPES } from '@/types';
 import type { ResourceEntry, TeachingMethod, LessonSection, LessonTocEntry, LessonActivity, EvaluationAttempt } from '@/types';
 
 const GEN_MODEL   = 'gemini-2.5-flash';
+const EVAL_MODEL  = 'gemini-2.5-pro';
 const MAX_RETRIES = 2;
 
 // ── Zod schema for generated section output ──────────────────────────────────
@@ -199,7 +200,9 @@ async function generateAndSaveSection(
 
       // Validate JSON structure
       try {
-        parsedActivities = JSON.parse(activitiesJson) as Record<string, unknown>;
+        const jsonMatch = activitiesJson.match(/\{[\s\S]*\}/);
+        const cleanJson = jsonMatch ? jsonMatch[0] : activitiesJson;
+        parsedActivities = JSON.parse(cleanJson) as Record<string, unknown>;
       } catch {
         extraConstraints = 'Your previous response was not valid JSON. Return ONLY valid JSON.';
         evalLog.push({ attempt, pass: false, issues: ['Generation JSON parse failed'], timestamp: Date.now() });
@@ -222,12 +225,14 @@ async function generateAndSaveSection(
         sectionTitle:  section.title,
       });
 
-      const evalRaw     = await aiAdapter.chat(evalMessages, GEN_MODEL, 0.1);
+      const evalRaw     = await aiAdapter.chat(evalMessages, EVAL_MODEL, 0.1);
       const evalCleaned = evalRaw.trim().replace(/^```(?:json)?|```$/gm, '').trim();
 
       let issues: string[] = [];
       try {
-        const evalParsed = JSON.parse(evalCleaned) as { overallPass?: boolean; issues?: unknown };
+        const jsonMatch = evalCleaned.match(/\{[\s\S]*\}/);
+        const cleanJson = jsonMatch ? jsonMatch[0] : evalCleaned;
+        const evalParsed = JSON.parse(cleanJson) as { overallPass?: boolean; issues?: unknown };
         overallPass  = Boolean(evalParsed.overallPass);
         issues       = Array.isArray(evalParsed.issues) ? (evalParsed.issues as string[]) : [];
       } catch {
